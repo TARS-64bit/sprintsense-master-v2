@@ -5,6 +5,7 @@ from app.data.seed_data import (
     SIMILARITY_MATCHES, DEPENDENCY_EDGES, AT_RISK_ITEMS
 )
 from app.services.llm import estimate_ticket
+from app.services.dependency_detector import detect_implicit_dependencies
 
 router = APIRouter()
 
@@ -27,8 +28,13 @@ def get_history():
 
 
 @router.get("/dependencies")
-def get_dependencies():
-    return {"edges": DEPENDENCY_EDGES, "total": len(DEPENDENCY_EDGES)}
+async def get_dependencies(x_llm_key: Optional[str] = Header(default=None)):
+    edges = await detect_implicit_dependencies(
+        tickets=BACKLOG_TICKETS,
+        explicit_edges=DEPENDENCY_EDGES,
+        api_key=x_llm_key
+    )
+    return {"edges": edges, "total": len(edges)}
 
 
 @router.get("/at-risk")

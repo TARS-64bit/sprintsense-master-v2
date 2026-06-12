@@ -2,21 +2,33 @@ from fastapi import APIRouter, Header
 from typing import Optional
 from app.data.seed_data import (
     PROPOSED_SPRINT, SPRINT_HISTORY, BURNDOWN,
-    BACKLOG_TICKETS, LLM_ESTIMATES, STANDUP_DIGEST, AT_RISK_ITEMS
+    BACKLOG_TICKETS, LLM_ESTIMATES, STANDUP_DIGEST, AT_RISK_ITEMS,
+    TEAM_MEMBERS, DEPENDENCY_EDGES
 )
 from app.services.llm import generate_digest
+from app.services.capacity_planner import build_sprint_plan
 
 router = APIRouter()
 
 
 @router.get("/current")
 def get_current_sprint():
+    plan = build_sprint_plan(
+        backlog_tickets=BACKLOG_TICKETS,
+        estimates=LLM_ESTIMATES,
+        team_members=TEAM_MEMBERS,
+        dependency_edges=DEPENDENCY_EDGES,
+        sprint_number=9,
+        start_date="2025-02-04",
+        end_date="2025-02-17",
+    )
+
     enriched = []
-    for entry in PROPOSED_SPRINT["tickets"]:
+    for entry in plan["tickets"]:
         ticket = next((t for t in BACKLOG_TICKETS if t["id"] == entry["id"]), {})
         est = LLM_ESTIMATES.get(entry["id"], {})
         enriched.append({**entry, "title": ticket.get("title", ""), "labels": ticket.get("labels", []), "estimate": est})
-    return {**PROPOSED_SPRINT, "tickets": enriched}
+    return {**plan, "tickets": enriched}
 
 
 @router.get("/history")
