@@ -55,71 +55,118 @@ export default function DependenciesPage() {
     const H = 480;
     svg.attr("viewBox", `0 0 ${W} ${H}`);
 
-    /* -------------------------------------------------------------------------
-     * TODO — implement the D3 force-directed graph
-     * -------------------------------------------------------------------------
-     * All data is prepared above: nodes[], links[], W, H, svg selection.
-     *
-     * Steps:
-     *
-     * 1. Arrow marker — append to <defs>:
-     *      svg.append("defs").append("marker")
-     *        .attr("id", "arrow")
-     *        .attr("viewBox", "0 -5 10 10")
-     *        .attr("refX", 28).attr("refY", 0)
-     *        .attr("markerWidth", 6).attr("markerHeight", 6)
-     *        .attr("orient", "auto")
-     *        .append("path").attr("d", "M0,-5L10,0L0,5").attr("fill", "#3d7eff")
-     *
-     * 2. Force simulation:
-     *      const sim = d3.forceSimulation(nodes as any)
-     *        .force("link",      d3.forceLink(links).id((d:any)=>d.id).distance(120))
-     *        .force("charge",    d3.forceManyBody().strength(-350))
-     *        .force("center",    d3.forceCenter(W/2, H/2))
-     *        .force("collision", d3.forceCollide(50))
-     *
-     * 3. Link lines:
-     *      const link = svg.append("g").selectAll("line").data(links).join("line")
-     *        .attr("stroke", "#3d7eff").attr("stroke-opacity", 0.55)
-     *        .attr("stroke-width", 1.5).attr("marker-end", "url(#arrow)")
-     *
-     * 4. Link labels (edge reason text, truncated to 28 chars + "…"):
-     *      const linkLabel = svg.append("g").selectAll("text").data(links).join("text")
-     *        .attr("font-size", 9).attr("fill", "#4a5468")
-     *        .attr("font-family", "Space Mono, monospace")
-     *        .text((d:any) => d.reason.substring(0, 28) + "…")
-     *
-     * 5. Node groups with drag behaviour:
-     *      const node = svg.append("g").selectAll("g").data(nodes).join("g")
-     *        .attr("cursor", "pointer")
-     *        .call(d3.drag<any,any>()
-     *          .on("start", (event, d:any) => { if (!event.active) sim.alphaTarget(0.3).restart(); d.fx=d.x; d.fy=d.y; })
-     *          .on("drag",  (event, d:any) => { d.fx=event.x; d.fy=event.y; })
-     *          .on("end",   (event, d:any) => { if (!event.active) sim.alphaTarget(0); d.fx=null; d.fy=null; })
-     *        )
-     *
-     * 6. For each node, append:
-     *      a) circle: r = 14 + d.pts, fill = STATUS_COLOR[d.status] at 18% opacity,
-     *                 stroke = STATUS_COLOR[d.status], strokeWidth = 2
-     *      b) text (ticket ID): dy="-4px", fontSize=10, fontWeight=700, fill="#3d7eff"
-     *      c) text (points):    dy="12px", fontSize=9,  fill="#8b95a8", text="${d.pts}p"
-     *
-     * 7. Tooltip — append a fixed-position <div> to document.body.
-     *      On node mouseover: fade in, set innerHTML with id/title/status.
-     *      On mousemove: update left/top to follow cursor.
-     *      On mouseout: fade out.
-     *
-     * 8. Tick handler:
-     *      sim.on("tick", () => {
-     *        link.attr("x1",(d:any)=>d.source.x).attr("y1",(d:any)=>d.source.y)
-     *            .attr("x2",(d:any)=>d.target.x).attr("y2",(d:any)=>d.target.y)
-     *        linkLabel.attr("x",(d:any)=>(d.source.x+d.target.x)/2)
-     *                 .attr("y",(d:any)=>(d.source.y+d.target.y)/2)
-     *        node.attr("transform",(d:any)=>`translate(${d.x},${d.y})`)
-     *      })
-     *
-     * 9. Cleanup: return () => { tooltip.remove(); sim.stop(); }
-     * ------------------------------------------------------------------------- */
+    // 1. Arrow marker
+    svg.append("defs").append("marker")
+      .attr("id", "arrow")
+      .attr("viewBox", "0 -5 10 10")
+      .attr("refX", 28).attr("refY", 0)
+      .attr("markerWidth", 6).attr("markerHeight", 6)
+      .attr("orient", "auto")
+      .append("path").attr("d", "M0,-5L10,0L0,5").attr("fill", "#3d7eff");
+
+    // 2. Force simulation
+    const sim = d3.forceSimulation(nodes as any)
+      .force("link",      d3.forceLink(links).id((d:any)=>d.id).distance(120))
+      .force("charge",    d3.forceManyBody().strength(-350))
+      .force("center",    d3.forceCenter(W/2, H/2))
+      .force("collision", d3.forceCollide(50));
+
+    // 3. Link lines
+    const link = svg.append("g").selectAll("line").data(links).join("line")
+      .attr("stroke", "#3d7eff").attr("stroke-opacity", 0.55)
+      .attr("stroke-width", 1.5).attr("marker-end", "url(#arrow)");
+
+    // 4. Link labels
+    const linkLabel = svg.append("g").selectAll("text").data(links).join("text")
+      .attr("font-size", 9).attr("fill", "#4a5468")
+      .attr("font-family", "Space Mono, monospace")
+      .text((d:any) => d.reason.length > 28 ? d.reason.substring(0, 28) + "…" : d.reason);
+
+    // 5. Node groups
+    const node = svg.append("g").selectAll("g").data(nodes).join("g")
+      .attr("cursor", "pointer")
+      .call(d3.drag<any,any>()
+        .on("start", (event, d:any) => { if (!event.active) sim.alphaTarget(0.3).restart(); d.fx=d.x; d.fy=d.y; })
+        .on("drag",  (event, d:any) => { d.fx=event.x; d.fy=event.y; })
+        .on("end",   (event, d:any) => { if (!event.active) sim.alphaTarget(0); d.fx=null; d.fy=null; })
+      );
+
+    // 6. Node elements
+    node.append("circle")
+      .attr("r", (d:any) => 14 + d.pts)
+      .attr("fill", (d:any) => {
+        const c = STATUS_COLOR[d.status] || "#4a5468";
+        // Convert hex to rgba string roughly
+        return d3.color(c)?.copy({opacity: 0.18})?.toString() || c;
+      })
+      .attr("stroke", (d:any) => STATUS_COLOR[d.status] || "#4a5468")
+      .attr("stroke-width", 2);
+
+    node.append("text")
+      .attr("dy", "-4px")
+      .attr("font-size", 10).attr("font-weight", 700).attr("fill", "#3d7eff")
+      .attr("text-anchor", "middle")
+      .text((d:any) => d.id);
+
+    node.append("text")
+      .attr("dy", "12px")
+      .attr("font-size", 9).attr("fill", "#8b95a8")
+      .attr("text-anchor", "middle")
+      .text((d:any) => `${d.pts}p`);
+
+    // 7. Tooltip
+    const tooltip = d3.select("body").append("div")
+      .style("position", "absolute")
+      .style("pointer-events", "none")
+      .style("opacity", 0)
+      .style("background", "var(--bg-elevated)")
+      .style("color", "var(--text-primary)")
+      .style("padding", "8px 12px")
+      .style("border", "1px solid var(--border)")
+      .style("border-radius", "6px")
+      .style("font-size", "12px")
+      .style("box-shadow", "0 4px 6px rgba(0,0,0,0.1)")
+      .style("z-index", "1000")
+      .style("max-width", "250px");
+
+    node
+      .on("mouseover", (event, d:any) => {
+        tooltip.transition().duration(200).style("opacity", 1);
+        tooltip.html(`
+          <div style="font-family: var(--font-mono); font-size: 11px; color: var(--accent); margin-bottom: 4px;">${d.id}</div>
+          <div style="font-weight: 600; margin-bottom: 4px;">${d.title}</div>
+          <div style="color: var(--text-muted); font-size: 11px;">Status: ${d.status}</div>
+        `);
+      })
+      .on("mousemove", (event) => {
+        tooltip
+          .style("left", (event.pageX + 15) + "px")
+          .style("top", (event.pageY - 28) + "px");
+      })
+      .on("mouseout", () => {
+        tooltip.transition().duration(200).style("opacity", 0);
+      });
+
+    // 8. Tick handler
+    sim.on("tick", () => {
+      link
+        .attr("x1", (d:any) => d.source.x)
+        .attr("y1", (d:any) => d.source.y)
+        .attr("x2", (d:any) => d.target.x)
+        .attr("y2", (d:any) => d.target.y);
+
+      linkLabel
+        .attr("x", (d:any) => (d.source.x + d.target.x) / 2)
+        .attr("y", (d:any) => (d.source.y + d.target.y) / 2);
+
+      node.attr("transform", (d:any) => `translate(${d.x},${d.y})`);
+    });
+
+    // 9. Cleanup
+    return () => {
+      tooltip.remove();
+      sim.stop();
+    };
 
   }, [deps, backlog, board]);
 

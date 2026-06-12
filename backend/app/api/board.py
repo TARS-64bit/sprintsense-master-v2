@@ -32,10 +32,32 @@ class MoveRequest(BaseModel):
 #   - Board state is consistent with SPRINT_BOARD after update.
 #   - Returns HTTP 400 for invalid status, HTTP 404 for unknown ticket_id.
 
+from fastapi import HTTPException
+
 @router.post("/move")
 def move_ticket(body: MoveRequest):
-    # TODO — implement this endpoint
-    raise NotImplementedError("POST /api/board/move not implemented — see board.py TODO")
+    valid_status = ["todo", "in_progress", "review", "done"]
+    if body.status not in valid_status:
+        raise HTTPException(status_code=400, detail="Invalid status")
+
+    found_col = None
+    for col in valid_status:
+        if body.ticket_id in SPRINT_BOARD[col]:
+            found_col = col
+            break
+
+    if not found_col:
+        raise HTTPException(status_code=404, detail="Ticket not found on board")
+
+    SPRINT_BOARD[found_col].remove(body.ticket_id)
+    SPRINT_BOARD[body.status].append(body.ticket_id)
+
+    for ticket in BACKLOG_TICKETS:
+        if ticket["id"] == body.ticket_id:
+            ticket["status"] = body.status
+            break
+
+    return get_board()
 
 
 @router.get("/")

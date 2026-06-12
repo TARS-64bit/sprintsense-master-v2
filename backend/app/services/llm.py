@@ -170,40 +170,35 @@ async def estimate_ticket(
     if not key:
         return {**(mock_estimate or {}), "source": "mock"}
 
-    # -------------------------------------------------------------------------
-    # TODO — implement the LLM estimation call
-    # -------------------------------------------------------------------------
-    # The key and similar_tickets are already resolved above.
-    # Steps:
-    #   1. Build similar_summary — one line per similar ticket:
-    #        "- {id}: \"{title}\" — {story_points} pts, {actual_cycle_days} days"
-    #      If similar_tickets is empty, use "No similar tickets found."
-    #
-    #   2. Build user_msg:
-    #        "Ticket: {ticket['id']} — \"{ticket['title']}\"\n"
-    #        "Description: {ticket['description']}\n\n"
-    #        "Similar completed tickets:\n{similar_summary}\n\n"
-    #        "Estimate story points for this ticket."
-    #
-    #   3. Call:  raw, is_real = await call_llm(ESTIMATE_SYSTEM, user_msg,
-    #                                           api_key=api_key, max_tokens=256)
-    #      If not is_real → return {**(mock_estimate or {}), "source": "mock"}
-    #
-    #   4. Strip markdown fences from raw:
-    #        cleaned = raw.strip().strip("```json").strip("```").strip()
-    #      Parse with json.loads(cleaned).
-    #
-    #   5. Return {**parsed, "source": "llm"}.
-    #
-    #   6. On any exception → log the raw snippet, return mock fallback.
-    #
-    # Expected output shape: {"points": int, "low": int, "high": int,
-    #                          "rationale": str, "source": "llm"}
-    # -------------------------------------------------------------------------
-    raise NotImplementedError(
-        "estimate_ticket LLM path not implemented — "
-        "set X-LLM-Key header and implement this function to activate real estimation"
-    )
+    if not similar_tickets:
+        similar_summary = "No similar tickets found."
+    else:
+        similar_summary = "\n".join(
+            f"- {t['id']}: \"{t['title']}\" — {t.get('story_points', '?')} pts, {t.get('actual_cycle_days', '?')} days"
+            for t in similar_tickets
+        )
+
+    user_msg = f"Ticket: {ticket['id']} — \"{ticket['title']}\"\nDescription: {ticket['description']}\n\nSimilar completed tickets:\n{similar_summary}\n\nEstimate story points for this ticket."
+
+    try:
+        raw, is_real = await call_llm(ESTIMATE_SYSTEM, user_msg, api_key=api_key, max_tokens=256)
+        if not is_real:
+            return {**(mock_estimate or {}), "source": "mock"}
+
+        cleaned = raw.strip()
+        if cleaned.startswith("```json"):
+            cleaned = cleaned[7:]
+        elif cleaned.startswith("```"):
+            cleaned = cleaned[3:]
+        if cleaned.endswith("```"):
+            cleaned = cleaned[:-3]
+        cleaned = cleaned.strip()
+
+        parsed = json.loads(cleaned)
+        return {**parsed, "source": "llm"}
+    except Exception as e:
+        logger.warning(f"Error parsing LLM estimate response: {e}")
+        return {**(mock_estimate or {}), "source": "mock"}
 
 
 # ---------------------------------------------------------------------------
@@ -247,38 +242,31 @@ async def generate_digest(
     if not key:
         return mock_digest or "", "mock"
 
-    # -------------------------------------------------------------------------
-    # TODO — implement the LLM digest generation call
-    # -------------------------------------------------------------------------
-    # The key, sprint_state, burndown, and at_risk are already available.
-    # Steps:
-    #   1. Build tickets_summary — one line per ticket:
-    #        "  - {id} ({title}): status={status}, assignee={assignee}, pts={pts}"
-    #
-    #   2. Build at_risk_summary — one line per item:
-    #        "  - {ticket_id} [{risk_level}]: {reason}"
-    #      Use "None" if at_risk is empty.
-    #
-    #   3. Find remaining points = last non-None value in burndown["actual"].
-    #
-    #   4. Build user_msg:
-    #        "Sprint {sprint_number}, Day {day} ({date_str})\n"
-    #        "Remaining points: {remaining} of {total_points}\n\n"
-    #        "Tickets:\n{tickets_summary}\n\n"
-    #        "At-risk:\n{at_risk_summary}\n\n"
-    #        "Write the daily standup digest."
-    #
-    #   5. Call:  raw, is_real = await call_llm(DIGEST_SYSTEM, user_msg,
-    #                                           api_key=api_key, max_tokens=512)
-    #      If not is_real → return mock_digest or "", "mock"
-    #
-    #   6. Return raw.strip(), "llm"
-    #
-    # Expected output: (markdown_string, "llm")
-    # The markdown must follow the DIGEST_SYSTEM structure:
-    #   🟢 Completed yesterday / 🔵 In progress today / 🔴 Blockers / ⚠️ Alert
-    # -------------------------------------------------------------------------
-    raise NotImplementedError(
-        "generate_digest LLM path not implemented — "
-        "set X-LLM-Key header and implement this function to activate real digests"
-    )
+    tickets_summary_list = []
+    for t in sprint_state.get("tickets", []):
+        tickets_summary_list.append(f"  - {t['id']} ({t.get('title', '')}): status={t['status']}, assignee={t['assignee']}, pts={t.get('points', '?')}")
+    tickets_summary = "\n".join(tickets_summary_list) if tickets_summary_list else "  - None"
+
+    if not at_risk:
+        at_risk_summary = "  - None"
+    else:
+        at_risk_summary = "\n".join(
+            f"  - {r['ticket_id']} [{r['risk_level']}]: {r['reason']}" for r in at_risk
+        )
+
+    remaining = None
+    for val in reversed(burndown.get("actual", [])):
+        if val is not None:
+            remaining = val
+            break
+
+    total_points = burndown.get("total_points", "?")
+    sprint_number = sprint_state.get("sprint_number", "?")
+
+    user_msg = f"Sprint {sprint_number}, Day {day} ({date_str})\nRemaining points: {remaining} of {total_points}\n\nTickets:\n{tickets_summary}\n\nAt-risk:\n{at_risk_summary}\n\nWrite the daily standup digest."
+
+    raw, is_real = await call_llm(DIGEST_SYSTEM, user_msg, api_key=api_key, max_tokens=512)
+    if not is_real:
+        return mock_digest or "", "mock"
+
+    return raw.strip(), "llm"

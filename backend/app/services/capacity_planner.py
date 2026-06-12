@@ -73,9 +73,38 @@ ROLE_LABEL_MAP: dict = {
 #   - Every ticket_id appears exactly once.
 #   - For every edge (u, v), u appears before v in result (when no cycle).
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 def topological_sort(ticket_ids: list, edges: list) -> list:
-    # TODO 1 — implement this function
-    raise NotImplementedError("topological_sort not implemented")
+    adj = {u: [] for u in ticket_ids}
+    indeg = {u: 0 for u in ticket_ids}
+
+    for edge in edges:
+        u = edge["from"]
+        v = edge["to"]
+        if u in adj and v in indeg:
+            adj[u].append(v)
+            indeg[v] += 1
+
+    queue = [u for u in ticket_ids if indeg[u] == 0]
+    result = []
+
+    while queue:
+        u = queue.pop(0)
+        result.append(u)
+        for v in adj[u]:
+            indeg[v] -= 1
+            if indeg[v] == 0:
+                queue.append(v)
+
+    if len(result) < len(ticket_ids):
+        logger.warning("Cycle detected in topological_sort")
+        remaining = [u for u in ticket_ids if indeg[u] > 0]
+        result.extend(remaining)
+
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -96,8 +125,10 @@ def topological_sort(ticket_ids: list, edges: list) -> list:
 # happen to match; deterministic for the same inputs.
 
 def role_score(member_role: str, ticket_labels: list) -> int:
-    # TODO 2 — implement this function
-    raise NotImplementedError("role_score not implemented")
+    preferred = ROLE_LABEL_MAP.get(member_role, [])
+    if not preferred:
+        return 0
+    return sum(1 for label in ticket_labels if label in preferred)
 
 
 # ---------------------------------------------------------------------------
@@ -129,8 +160,22 @@ def assign_to_member(
     members: list,
     used_hours: dict,
 ) -> Optional[str]:
-    # TODO 3 — implement this function
-    raise NotImplementedError("assign_to_member not implemented")
+    est = estimates.get(ticket["id"], {})
+    points = est.get("points", 0)
+    hours_needed = points * HOURS_PER_POINT
+
+    eligible = []
+    for m in members:
+        avail = m["capacity_hours"] - used_hours.get(m["id"], 0.0)
+        if avail >= hours_needed:
+            score = role_score(m["role"], ticket.get("labels", []))
+            eligible.append((score, avail, m["id"]))
+
+    if not eligible:
+        return None
+
+    eligible.sort(key=lambda x: (x[0], x[1]), reverse=True)
+    return eligible[0][2]
 
 
 # ---------------------------------------------------------------------------
@@ -196,5 +241,53 @@ def build_sprint_plan(
     end_date: str,
     sprint_days: int = 10,
 ) -> dict:
-    # TODO 4 — implement this function
-    raise NotImplementedError("build_sprint_plan not implemented")
+    ticket_ids = [t["id"] for t in backlog_tickets]
+    sorted_ids = topological_sort(ticket_ids, dependency_edges)
+
+    used_hours = {m["id"]: 0.0 for m in team_members}
+    finish_day = {}
+    planned = []
+    deferred = []
+    deferred_notes = []
+
+    for ticket_id in sorted_ids:
+        ticket = next((t for t in backlog_tickets if t["id"] == ticket_id), None)
+        if not ticket:
+            continue
+
+        assignee = assign_to_member(ticket, estimates, team_members, used_hours)
+        if assignee is None:
+            deferred.append(ticket_id)
+            deferred_notes.append(f"{ticket_id} (capacity)")
+            continue
+
+        pts = estimates.get(ticket_id, {}).get("points", 0)
+        used_hours[assignee] += pts * HOURS_PER_POINT
+
+        blockers = [e["from"] for e in dependency_edges if e["to"] == ticket_id]
+        sprint_day_start = max([finish_day.get(b, 0) for b in blockers], default=0) + 1
+        sprint_day_start = max(1, min(sprint_day_start, sprint_days))
+
+        estimated_days = max(1, round(pts * HOURS_PER_POINT / 8))
+        finish_day[ticket_id] = sprint_day_start + estimated_days - 1
+
+        planned.append({
+            "id": ticket_id,
+            "assignee": assignee,
+            "sprint_day_start": sprint_day_start,
+            "estimated_days": estimated_days,
+            "status": "todo",
+        })
+
+    total_capacity_points = sum(estimates.get(t["id"], {}).get("points", 0) for t in planned)
+    deferred_notes_string = "Deferred items: " + ", ".join(deferred_notes) if deferred_notes else "All items scheduled."
+
+    return {
+        "sprint_number": sprint_number,
+        "start_date": start_date,
+        "end_date": end_date,
+        "total_capacity_points": total_capacity_points,
+        "tickets": planned,
+        "deferred": deferred,
+        "notes": deferred_notes_string,
+    }

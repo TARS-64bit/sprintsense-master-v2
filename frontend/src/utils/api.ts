@@ -50,8 +50,13 @@ async function get<T>(path: string): Promise<T> {
  *   - buildHeaders() must be called so the LLM key is forwarded on POST too.
  * --------------------------------------------------------------------------- */
 async function post<T>(path: string, body: unknown): Promise<T> {
-  // TODO — implement this function
-  throw new Error("post() not implemented");
+  const res = await fetch(`${BASE}${path}`, {
+    method: "POST",
+    headers: buildHeaders(),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`API error ${res.status}: ${path}`);
+  return res.json() as Promise<T>;
 }
 
 export const api = {
@@ -96,8 +101,7 @@ export const api = {
    * backend/app/api/board.py (see board.py TODO comment).
    * ------------------------------------------------------------------------- */
   updateTicketStatus: (ticketId: string, newStatus: string) => {
-    // TODO — implement this function
-    throw new Error("updateTicketStatus not implemented");
+    return post<any>("/api/board/move", { ticket_id: ticketId, status: newStatus });
   },
 
   /* ── Integration endpoints ─────────────────────────────────────────────── */

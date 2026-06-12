@@ -117,60 +117,67 @@ def save_integration_config(cfg: IntegrationConfig):
     return {"saved": True, "status": get_integration_status()}
 
 
+from app.data.seed_data import BACKLOG_TICKETS, SPRINT_HISTORY
+
 @router.post("/jira/sync")
 async def sync_jira():
-    """
-    TODO — Pull open issues and sprint history from Jira, upsert into seed data.
+    tickets = await jira_client.fetch_issues()
+    history = await jira_client.fetch_sprint_history()
 
-    Implement jira_client.fetch_issues() and jira_client.fetch_sprint_history()
-    in backend/app/services/jira_client.py, then wire them here:
+    # Merge into BACKLOG_TICKETS
+    existing_ids = {t["id"]: i for i, t in enumerate(BACKLOG_TICKETS)}
+    for t in tickets:
+        if t["id"] in existing_ids:
+            BACKLOG_TICKETS[existing_ids[t["id"]]] = t
+        else:
+            BACKLOG_TICKETS.append(t)
+            existing_ids[t["id"]] = len(BACKLOG_TICKETS) - 1
 
-      tickets = await jira_client.fetch_issues()
-      history = await jira_client.fetch_sprint_history()
-      # merge into BACKLOG_TICKETS and SPRINT_HISTORY from seed_data
-      return {"synced_tickets": len(tickets), "synced_sprints": len(history)}
-    """
-    raise NotImplementedError(
-        "Jira sync not implemented — set JIRA_* env vars and implement "
-        "jira_client.fetch_issues() in backend/app/services/jira_client.py"
-    )
+    # Overwrite sprint history for simplicity, or merge
+    if history:
+        SPRINT_HISTORY.clear()
+        SPRINT_HISTORY.extend(history)
 
+    return {"synced_tickets": len(tickets), "synced_sprints": len(history)}
 
 @router.post("/github/sync")
 async def sync_github():
-    """
-    TODO — Pull open issues from GitHub, upsert into BACKLOG_TICKETS.
+    issues = await github_client.fetch_issues()
 
-    Implement github_client.fetch_issues() in backend/app/services/github_client.py,
-    then wire it here:
+    existing_ids = {t["id"]: i for i, t in enumerate(BACKLOG_TICKETS)}
+    for issue in issues:
+        if issue["id"] in existing_ids:
+            BACKLOG_TICKETS[existing_ids[issue["id"]]] = issue
+        else:
+            BACKLOG_TICKETS.append(issue)
+            existing_ids[issue["id"]] = len(BACKLOG_TICKETS) - 1
 
-      issues = await github_client.fetch_issues()
-      # merge into BACKLOG_TICKETS from seed_data
-      return {"synced": len(issues)}
-    """
-    raise NotImplementedError(
-        "GitHub sync not implemented — set GITHUB_* env vars and implement "
-        "github_client.fetch_issues() in backend/app/services/github_client.py"
-    )
-
+    return {"synced": len(issues)}
 
 @router.post("/slack/test")
 async def test_slack():
-    """
-    TODO — Send a test message to the configured Slack channel.
+    import httpx
 
-    Implement notifier.build_slack_blocks() and notifier.send_slack_alert()
-    in backend/app/services/notifier.py, then wire here:
+    webhook_url = _get("SLACK_WEBHOOK_URL")
+    if not webhook_url:
+        return {"ok": False, "error": "SLACK_WEBHOOK_URL not configured"}
 
-      from app.services.notifier import build_slack_blocks
-      import httpx, os
-      payload = {"blocks": [{"type": "section", "text": {"type": "mrkdwn",
-                  "text": "*SprintSense* connected ✅"}}]}
-      async with httpx.AsyncClient() as client:
-          resp = await client.post(os.getenv("SLACK_WEBHOOK_URL"), json=payload)
-      return {"ok": resp.status_code == 200}
-    """
-    raise NotImplementedError(
-        "Slack test not implemented — set SLACK_WEBHOOK_URL and implement "
-        "notifier.send_slack_alert() in backend/app/services/notifier.py"
-    )
+    payload = {
+        "blocks": [
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "*SprintSense* connected ✅"
+                }
+            }
+        ]
+    }
+
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(webhook_url, json=payload)
+            return {"ok": resp.status_code == 200}
+    except Exception as e:
+        logger.exception(f"Error testing Slack: {e}")
+        return {"ok": False, "error": str(e)}

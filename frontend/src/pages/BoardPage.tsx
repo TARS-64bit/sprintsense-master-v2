@@ -49,8 +49,12 @@ export default function BoardPage() {
    *   - Call is fire-and-forget (no await needed in handleDrop).
    * --------------------------------------------------------------------------- */
   async function persistColumnChange(ticketId: string, newColumn: Column): Promise<void> {
-    // TODO 1 — implement this function
-    throw new Error("persistColumnChange not implemented");
+    try {
+      await api.updateTicketStatus(ticketId, newColumn);
+      console.info(`[Board] ${ticketId} → ${newColumn}`);
+    } catch (err) {
+      console.error(`Failed to persist column change for ${ticketId}`, err);
+    }
   }
 
   /* ---------------------------------------------------------------------------
@@ -90,7 +94,28 @@ export default function BoardPage() {
    *   - Board re-renders immediately; persistence is async in background.
    * --------------------------------------------------------------------------- */
   const handleDrop = (to: Column) => {
-    // TODO 2 — implement this function
+    if (!dragging || dragging.from === to) {
+      setDragging(null);
+      setDragOver(null);
+      return;
+    }
+
+    const src = [...activeBoard[dragging.from]];
+    const dst = [...activeBoard[to]];
+
+    const idx = src.findIndex((t: any) => t.id === dragging.id);
+    if (idx === -1) {
+      setDragging(null);
+      setDragOver(null);
+      return;
+    }
+
+    const [ticket] = src.splice(idx, 1);
+    dst.push({ ...ticket, status: to });
+
+    setBoard({ ...activeBoard, [dragging.from]: src, [to]: dst });
+    persistColumnChange(dragging.id, to);
+
     setDragging(null);
     setDragOver(null);
   };
