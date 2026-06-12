@@ -66,8 +66,24 @@ Respond with ONLY valid JSON — no markdown, no extra keys:
 # Acceptance: O(V + E), no recursion depth issues for up to 200 tickets.
 
 def has_path(adj: dict, start: str, goal: str) -> bool:
-    # TODO 1 — implement this function
-    raise NotImplementedError("has_path not implemented")
+    if start == goal:
+        return True
+
+    visited = set()
+    stack = [start]
+
+    while stack:
+        node = stack.pop()
+        if node == goal:
+            return True
+
+        if node not in visited:
+            visited.add(node)
+            for neighbor in adj.get(node, []):
+                if neighbor not in visited:
+                    stack.append(neighbor)
+
+    return False
 
 
 # ---------------------------------------------------------------------------
@@ -106,8 +122,42 @@ async def classify_pair(
     api_key: Optional[str] = None,
     confidence_threshold: float = 0.7,
 ) -> Optional[dict]:
-    # TODO 2 — implement this function
-    raise NotImplementedError("classify_pair not implemented")
+    user_msg = f"""Ticket A: {ticket_a['id']} — {ticket_a['title']}
+Description: {ticket_a['description']}
+
+Ticket B: {ticket_b['id']} — {ticket_b['title']}
+Description: {ticket_b['description']}
+
+Does A block B?"""
+
+    try:
+        raw, is_real = await call_llm(CLASSIFY_SYSTEM, user_msg, api_key=api_key)
+        if not is_real:
+            return None
+
+        cleaned = raw.strip()
+        if cleaned.startswith("```json"):
+            cleaned = cleaned[7:]
+        elif cleaned.startswith("```"):
+            cleaned = cleaned[3:]
+        if cleaned.endswith("```"):
+            cleaned = cleaned[:-3]
+        cleaned = cleaned.strip()
+
+        parsed = json.loads(cleaned)
+
+        if parsed.get("blocks") is True and parsed.get("confidence", 0) >= confidence_threshold:
+            return {
+                "from": ticket_a["id"],
+                "to": ticket_b["id"],
+                "reason": parsed.get("reason", "Inferred dependency"),
+                "source": "llm",
+            }
+
+        return None
+    except Exception as e:
+        logger.error(f"Error classifying pair {ticket_a['id']} and {ticket_b['id']}: {e}")
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -146,5 +196,43 @@ async def detect_implicit_dependencies(
     explicit_edges: list,
     api_key: Optional[str] = None,
 ) -> list:
-    # TODO 3 — implement this function
-    raise NotImplementedError("detect_implicit_dependencies not implemented")
+    if not api_key:
+        return explicit_edges
+
+    known_pairs = set((e["from"], e["to"]) for e in explicit_edges)
+
+    adj = {}
+    for e in explicit_edges:
+        if e["from"] not in adj:
+            adj[e["from"]] = []
+        adj[e["from"]].append(e["to"])
+
+    sem = asyncio.Semaphore(MAX_CONCURRENT)
+
+    tasks = []
+
+    async def process_pair(a, b):
+        async with sem:
+            return await classify_pair(a, b, api_key=api_key)
+
+    for a in tickets:
+        for b in tickets:
+            if a["id"] != b["id"] and (a["id"], b["id"]) not in known_pairs:
+                tasks.append(process_pair(a, b))
+
+    results = await asyncio.gather(*tasks)
+
+    inferred_edges = []
+    for edge in results:
+        if edge is not None:
+            # Check for cycle: would adding edge create a cycle?
+            # i.e., is there already a path from edge["to"] to edge["from"]?
+            if has_path(adj, edge["to"], edge["from"]):
+                logger.warning(f"Cycle detected, ignoring edge from {edge['from']} to {edge['to']}")
+            else:
+                if edge["from"] not in adj:
+                    adj[edge["from"]] = []
+                adj[edge["from"]].append(edge["to"])
+                inferred_edges.append(edge)
+
+    return explicit_edges + inferred_edges

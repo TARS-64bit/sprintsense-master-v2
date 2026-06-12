@@ -85,12 +85,90 @@ def is_configured() -> bool:
 #   - Returns [] when env vars are missing (never raises).
 #   - Returned dicts match the Ticket schema used by BACKLOG_TICKETS.
 
+def _map_status(status_name: str) -> str:
+    s = status_name.lower()
+    if s == "to do":
+        return "todo"
+    elif s == "in progress":
+        return "in_progress"
+    elif s == "in review":
+        return "review"
+    elif s == "done":
+        return "done"
+    return "todo"
+
 async def fetch_issues(
     project_key: Optional[str] = None,
     max_results: int = 50,
 ) -> list:
-    # TODO 1 — implement this function
-    raise NotImplementedError("jira_client.fetch_issues not implemented")
+    base_url = os.getenv("JIRA_URL")
+    if not base_url:
+        logger.warning("JIRA_URL not set")
+        return []
+
+    key = project_key or os.getenv("JIRA_PROJECT_KEY")
+    if not key:
+        logger.warning("JIRA_PROJECT_KEY not set")
+        return []
+
+    jql = f"project={key} AND status != Done ORDER BY created DESC"
+    url = f"{base_url}/rest/api/3/search"
+
+    headers = {
+        "Authorization": _auth_header(),
+        "Accept": "application/json"
+    }
+
+    params = {
+        "jql": jql,
+        "maxResults": max_results,
+        "fields": "summary,description,labels,status,assignee,priority,story_points"
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(url, headers=headers, params=params)
+            resp.raise_for_status()
+            data = resp.json()
+
+            issues = []
+            for issue in data.get("issues", []):
+                fields = issue.get("fields", {})
+
+                # Handle description if it's a dict (Atlassian Document Format)
+                desc = fields.get("description", "")
+                if isinstance(desc, dict):
+                    # Simplified plain text extraction for Atlassian Document Format
+                    desc_text = ""
+                    for content in desc.get("content", []):
+                        if content.get("type") == "paragraph":
+                            for inner_content in content.get("content", []):
+                                if inner_content.get("type") == "text":
+                                    desc_text += inner_content.get("text", "") + " "
+                            desc_text += "\n"
+                    desc = desc_text.strip()
+
+                assignee = None
+                if fields.get("assignee"):
+                    assignee = fields["assignee"].get("displayName")
+
+                status_name = ""
+                if fields.get("status"):
+                    status_name = fields["status"].get("name", "")
+
+                issues.append({
+                    "id": f"JIRA-{issue['key']}",
+                    "title": fields.get("summary", ""),
+                    "description": desc,
+                    "labels": fields.get("labels", []),
+                    "status": _map_status(status_name),
+                    "assignee": assignee,
+                })
+
+            return issues
+    except Exception as e:
+        logger.exception(f"Error fetching Jira issues: {e}")
+        return []
 
 
 # ---------------------------------------------------------------------------
@@ -116,5 +194,69 @@ async def fetch_issues(
 # Acceptance: returns [] when env vars missing; never raises.
 
 async def fetch_sprint_history(board_id: Optional[int] = None) -> list:
-    # TODO 2 — implement this function
-    raise NotImplementedError("jira_client.fetch_sprint_history not implemented")
+    base_url = os.getenv("JIRA_URL")
+    b_id = board_id or os.getenv("JIRA_BOARD_ID")
+
+    if not base_url or not b_id:
+        return []
+
+    url = f"{base_url}/rest/agile/1.0/board/{b_id}/sprint"
+    headers = {
+        "Authorization": _auth_header(),
+        "Accept": "application/json"
+    }
+    params = {"state": "closed"}
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(url, headers=headers, params=params)
+            resp.raise_for_status()
+            data = resp.json()
+
+            history = []
+            sprints = data.get("values", [])
+
+            for i, sprint in enumerate(sprints):
+                sprint_id = sprint.get("id")
+                issue_url = f"{base_url}/rest/agile/1.0/sprint/{sprint_id}/issue"
+                issue_params = {"fields": "story_points,status"}
+
+                issue_resp = await client.get(issue_url, headers=headers, params=issue_params)
+                issue_resp.raise_for_status()
+                issue_data = issue_resp.json()
+
+                total_pts = 0
+                done_pts = 0
+
+                for issue in issue_data.get("issues", []):
+                    fields = issue.get("fields", {})
+                    # Need to know custom field for story points, assume "customfield_10016" or similar
+                    # For simplicity, look at "story_points" or "customfield_10016"
+                    pts = fields.get("story_points") or fields.get("customfield_10016") or 0
+                    try:
+                        pts = float(pts)
+                    except (ValueError, TypeError):
+                        pts = 0
+
+                    total_pts += pts
+
+                    status_name = ""
+                    if fields.get("status"):
+                        status_name = fields["status"].get("name", "")
+
+                    if _map_status(status_name) == "done":
+                        done_pts += pts
+
+                history.append({
+                    "sprint": i + 1,
+                    "start": sprint.get("startDate", "")[:10],
+                    "end": sprint.get("endDate", "")[:10],
+                    "committed": total_pts,
+                    "completed": done_pts,
+                    "velocity": done_pts
+                })
+
+            return history
+    except Exception as e:
+        logger.exception(f"Error fetching Jira sprint history: {e}")
+        return []

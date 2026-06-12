@@ -7,51 +7,38 @@ from app.data.seed_data import (
 router = APIRouter()
 
 
+from app.services.monte_carlo import run_simulation
+
 @router.get("/slippage")
 def get_slippage_forecast():
-    # -------------------------------------------------------------------------
-    # TODO — replace static seed data with live Monte-Carlo forecast
-    # -------------------------------------------------------------------------
-    # Currently this endpoint returns the hardcoded SLIPPAGE_FORECAST list.
-    # Implement the real forecast by calling monte_carlo.run_simulation().
-    #
-    # Steps:
-    #   1. Import run_simulation from app.services.monte_carlo.
-    #
-    #   2. Read current state:
-    #        current_day     = number of non-None values in BURNDOWN["actual"]
-    #        remaining_pts   = last non-None value in BURNDOWN["actual"]
-    #        days_left       = BURNDOWN["total_points"] — already 10 total days,
-    #                          so days_left = 10 - current_day
-    #        sprint_dates    = BURNDOWN["days"][current_day:]   (future dates)
-    #        burndown_actual = BURNDOWN["actual"]
-    #
-    #   3. Call (note: run_simulation is sync in this implementation):
-    #        forecast = run_simulation(
-    #            remaining_points = remaining_pts,
-    #            days_left        = days_left,
-    #            sprint_history   = SPRINT_HISTORY,
-    #            sprint_dates     = sprint_dates,
-    #            burndown_actual  = burndown_actual,
-    #        )
-    #
-    #   4. Derive:
-    #        current_prob = forecast[0]["completion_probability"]  if forecast else None
-    #        trend = "declining" if len(forecast) > 1 and
-    #                forecast[-1]["prob"] < forecast[0]["prob"] else "stable"
-    #
-    #   5. Return the same shape as below but with live forecast data.
-    #
-    # Until implemented, the endpoint falls back to static seed data.
-    # -------------------------------------------------------------------------
+    current_day = sum(1 for val in BURNDOWN["actual"] if val is not None)
 
-    current_day = 6
-    current_prob = next(
-        (f["completion_probability"] for f in SLIPPAGE_FORECAST if f["day"] == current_day), None
+    remaining_pts = None
+    for val in reversed(BURNDOWN["actual"]):
+        if val is not None:
+            remaining_pts = val
+            break
+
+    days_left = 10 - current_day
+    sprint_dates = BURNDOWN["days"][current_day:current_day+days_left]
+
+    forecast = run_simulation(
+        remaining_points=remaining_pts,
+        days_left=days_left,
+        sprint_history=SPRINT_HISTORY,
+        sprint_dates=sprint_dates,
+        burndown_actual=BURNDOWN["actual"],
     )
-    trend = "declining"
+
+    if forecast:
+        current_prob = forecast[0]["completion_probability"]
+        trend = "declining" if len(forecast) > 1 and forecast[-1]["completion_probability"] < forecast[0]["completion_probability"] else "stable"
+    else:
+        current_prob = None
+        trend = "stable"
+
     return {
-        "forecast": SLIPPAGE_FORECAST,
+        "forecast": forecast,
         "current_day": current_day,
         "current_probability": current_prob,
         "trend": trend,

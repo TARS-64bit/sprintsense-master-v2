@@ -80,5 +80,43 @@ async def fetch_issues(
     repo: Optional[str] = None,
     max_results: int = 50,
 ) -> list:
-    # TODO 1 — implement this function
-    raise NotImplementedError("github_client.fetch_issues not implemented")
+    gh_owner = owner or os.getenv("GITHUB_OWNER")
+    gh_repo = repo or os.getenv("GITHUB_REPO")
+    token = os.getenv("GITHUB_TOKEN")
+
+    if not (gh_owner and gh_repo and token):
+        logger.warning("GitHub config missing (owner, repo, or token)")
+        return []
+
+    url = f"{GITHUB_API_URL}/repos/{gh_owner}/{gh_repo}/issues"
+    params = {"state": "open", "per_page": max_results}
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(url, headers=_auth_header(), params=params)
+            resp.raise_for_status()
+            data = resp.json()
+
+            issues = []
+            for issue in data:
+                # Filter out PRs
+                if issue.get("pull_request") is not None:
+                    continue
+
+                assignee = None
+                if issue.get("assignee"):
+                    assignee = issue["assignee"].get("login")
+
+                issues.append({
+                    "id": f"GH-{issue['number']}",
+                    "title": issue.get("title", ""),
+                    "description": issue.get("body") or "",
+                    "labels": [l.get("name", "") for l in issue.get("labels", []) if isinstance(l, dict)],
+                    "status": "todo",
+                    "assignee": assignee,
+                })
+
+            return issues
+    except Exception as e:
+        logger.exception(f"Error fetching GitHub issues: {e}")
+        return []

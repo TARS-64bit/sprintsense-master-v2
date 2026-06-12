@@ -53,8 +53,12 @@ def build_velocity_distribution(
     sprint_history: list,
     sprint_days: int = 10,
 ) -> tuple:
-    # TODO 1 — implement this function
-    raise NotImplementedError("build_velocity_distribution not implemented")
+    daily_rates = [s["velocity"] / sprint_days for s in sprint_history]
+    if not daily_rates:
+        return 0.0, 0.0
+    mean = statistics.mean(daily_rates)
+    stdev = statistics.stdev(daily_rates) if len(daily_rates) > 1 else 0.0
+    return mean, stdev
 
 
 # ---------------------------------------------------------------------------
@@ -78,8 +82,24 @@ def project_remaining_points(
     burndown_actual: list,
     mean_daily: float,
 ) -> list:
-    # TODO 2 — implement this function
-    raise NotImplementedError("project_remaining_points not implemented")
+    # Find the last non-None value and its index.
+    last_val = None
+    last_idx = -1
+    for i, val in enumerate(burndown_actual):
+        if val is not None:
+            last_val = val
+            last_idx = i
+
+    if last_val is None:
+        return []
+
+    projected = list(burndown_actual)
+    current = last_val
+    for i in range(last_idx + 1, len(projected)):
+        current = max(0.0, current - mean_daily)
+        projected[i] = int(round(current))
+
+    return projected
 
 
 # ---------------------------------------------------------------------------
@@ -135,5 +155,45 @@ def run_simulation(
     burndown_actual: list,
     n_simulations: int = 10_000,
 ) -> list:
-    # TODO 3 — implement this function
-    raise NotImplementedError("run_simulation not implemented")
+    if days_left <= 0:
+        return []
+
+    mean, stdev = build_velocity_distribution(sprint_history)
+
+    finish = []
+    for _ in range(n_simulations):
+        remaining = float(remaining_points)
+        for d in range(days_left):
+            daily_burn = max(0.0, random.gauss(mean, stdev))
+            remaining = max(0.0, remaining - daily_burn)
+            if remaining == 0:
+                finish.append(d)
+                break
+        else:
+            finish.append(days_left)
+
+    projected = project_remaining_points(burndown_actual, mean)
+
+    # burndown_actual contains values for all days. The future days correspond to the
+    # elements in burndown_actual that are originally None.
+    # We want to match the days_left with sprint_dates length.
+    # Note that sprint_dates length is days_left.
+    # The projected remaining points for future days corresponds to the last days_left items in projected.
+
+    projected_remaining = projected[-days_left:] if projected else []
+
+    result = []
+    current_day = sum(1 for val in burndown_actual if val is not None)
+
+    for d in range(days_left):
+        prob = len([f for f in finish if f <= d]) / n_simulations
+
+        rem_pts = projected_remaining[d] if d < len(projected_remaining) else 0
+
+        result.append({
+            "day": current_day + d + 1,
+            "date": sprint_dates[d],
+            "completion_probability": round(prob, 2),
+            "remaining_points": rem_pts,
+        })
+    return result

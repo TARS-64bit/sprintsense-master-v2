@@ -7,6 +7,15 @@ import {
 } from "recharts";
 import { AlertTriangle, TrendingDown, Zap } from "lucide-react";
 
+function StatPill({ label, value, color }: { label: string; value: string; color: string }) {
+  return (
+    <div style={{ flex: 1, padding: "8px 12px", background: "var(--bg-overlay)", borderRadius: 8, border: "1px solid var(--border)" }}>
+      <div style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--text-muted)", marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 20, fontWeight: 700, color, lineHeight: 1 }}>{value ?? "-"}</div>
+    </div>
+  );
+}
+
 export default function ForecastPage() {
   const { data: slippage, loading: sl } = useApi(() => api.getSlippage());
   const { data: velocity, loading: vl } = useApi(() => api.getVelocity());
@@ -73,85 +82,105 @@ export default function ForecastPage() {
         </div>
       </div>
 
-      {/* -----------------------------------------------------------------------
-       * TODO 1 — Completion Probability Area Chart
-       * -----------------------------------------------------------------------
-       * Render a row of two cards (flex, gap 12):
-       *
-       * Card 1 (flex: 2) — "Completion Probability — Daily"
-       *   Use <ResponsiveContainer width="100%" height={220}>
-       *       <AreaChart data={forecastData} margin={{ top:5, right:16, left:-20, bottom:0 }}>
-       *   Add:
-       *     - A <defs> gradient fill (id="pGrad") from amber at 35% opacity to transparent
-       *     - <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-       *     - <XAxis dataKey="day" />  <YAxis domain={[30,100]} tickFormatter={v=>`${v}%`} />
-       *     - <Tooltip formatter={(v)=>`${v}%`} />
-       *     - <ReferenceLine y={70} stroke="var(--green)"  label="Target 70%" />
-       *     - <ReferenceLine y={50} stroke="var(--red)"    label="Critical 50%" />
-       *     - <Area dataKey="prob" stroke="var(--amber)" fill="url(#pGrad)" strokeWidth={2.5}
-       *             dot={{ r:4 }} name="Probability %" />
-       *
-       * Card 2 (flex: 1.5) — "Remaining Points"
-       *   Use <BarChart data={forecastData}>
-       *     - <Bar dataKey="remaining" fill="var(--accent)" radius={[4,4,0,0]} />
-       * ----------------------------------------------------------------------- */}
-      <div className="card" style={{ marginBottom: 16, display:"flex", alignItems:"center", justifyContent:"center", height: 240 }}>
-        <p style={{ color:"var(--text-muted)", fontFamily:"var(--font-mono)", fontSize:13 }}>
-          📊 TODO 1 — render completion probability chart + remaining points bar chart here
-        </p>
+      <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
+        <div className="card" style={{ flex: 2 }}>
+          <div style={styles.cardTitle}>Completion Probability — Daily</div>
+          <ResponsiveContainer width="100%" height={220}>
+            <AreaChart data={forecastData} margin={{ top: 5, right: 16, left: -20, bottom: 0 }}>
+              <defs>
+                <linearGradient id="pGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="var(--amber)" stopOpacity={0.35} />
+                  <stop offset="95%" stopColor="var(--amber)" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+              <XAxis dataKey="day" tick={{ fontSize: 12, fill: "var(--text-muted)" }} />
+              <YAxis domain={[30, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 12, fill: "var(--text-muted)" }} />
+              <Tooltip formatter={(v: number) => `${v}%`} contentStyle={{ borderRadius: 8, border: "1px solid var(--border)" }} />
+              <ReferenceLine y={70} stroke="var(--green)" label={{ position: 'insideTopLeft', value: 'Target 70%', fill: 'var(--green)', fontSize: 11 }} />
+              <ReferenceLine y={50} stroke="var(--red)" label={{ position: 'insideBottomLeft', value: 'Critical 50%', fill: 'var(--red)', fontSize: 11 }} />
+              <Area type="monotone" dataKey="prob" stroke="var(--amber)" fill="url(#pGrad)" strokeWidth={2.5} dot={{ r: 4 }} name="Probability %" />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="card" style={{ flex: 1.5 }}>
+          <div style={styles.cardTitle}>Remaining Points</div>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={forecastData} margin={{ top: 5, right: 16, left: -20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+              <XAxis dataKey="day" tick={{ fontSize: 12, fill: "var(--text-muted)" }} />
+              <YAxis tick={{ fontSize: 12, fill: "var(--text-muted)" }} />
+              <Tooltip cursor={{ fill: "var(--bg-overlay)" }} contentStyle={{ borderRadius: 8, border: "1px solid var(--border)" }} />
+              <Bar dataKey="remaining" fill="var(--accent)" radius={[4, 4, 0, 0]} name="Points" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
       </div>
 
-      {/* -----------------------------------------------------------------------
-       * TODO 2 — Burndown + Velocity Charts Row
-       * -----------------------------------------------------------------------
-       * Render another flex row (gap 12):
-       *
-       * Card 1 (flex: 1.5) — "Burndown — Actual vs Ideal"
-       *   Use <LineChart data={burndownChart}>
-       *     - Dashed line for "ideal" (stroke="var(--border)", no dots)
-       *     - Solid line for "actual" (stroke="var(--accent)", connectNulls=false,
-       *       dots at each actual data point)
-       *
-       * Card 2 (flex: 1) — "Velocity History"
-       *   Top section: four <StatPill> components for avg / min / max / last_sprint.
-       *   Chart: <LineChart data={velHistory}>
-       *     - <ReferenceLine y={velocity?.average} /> — dotted avg line
-       *     - <Line dataKey="velocity" stroke="var(--green)" />
-       *
-       * StatPill component signature:
-       *   function StatPill({ label, value, color }: { label:string, value:string, color:string })
-       *   Renders a small box with a monospaced label (muted) over a large coloured value.
-       * ----------------------------------------------------------------------- */}
-      <div className="card" style={{ marginBottom: 16, display:"flex", alignItems:"center", justifyContent:"center", height: 220 }}>
-        <p style={{ color:"var(--text-muted)", fontFamily:"var(--font-mono)", fontSize:13 }}>
-          📊 TODO 2 — render burndown line chart + velocity history chart here
-        </p>
+      <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
+        <div className="card" style={{ flex: 1.5 }}>
+          <div style={styles.cardTitle}>Burndown — Actual vs Ideal</div>
+          <ResponsiveContainer width="100%" height={220}>
+            <LineChart data={burndownChart} margin={{ top: 5, right: 16, left: -20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+              <XAxis dataKey="day" tick={{ fontSize: 12, fill: "var(--text-muted)" }} />
+              <YAxis tick={{ fontSize: 12, fill: "var(--text-muted)" }} />
+              <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid var(--border)" }} />
+              <Line type="monotone" dataKey="ideal" stroke="var(--border)" strokeWidth={2} strokeDasharray="5 5" dot={false} name="Ideal" />
+              <Line type="monotone" dataKey="actual" stroke="var(--accent)" strokeWidth={3} dot={{ r: 4 }} connectNulls={false} name="Actual" />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="card" style={{ flex: 1 }}>
+          <div style={styles.cardTitle}>Velocity History</div>
+          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+            <StatPill label="AVG" value={velocity?.average?.toString()} color="var(--green)" />
+            <StatPill label="MIN" value={velocity?.min?.toString()} color="var(--amber)" />
+            <StatPill label="MAX" value={velocity?.max?.toString()} color="var(--purple)" />
+            <StatPill label="LAST" value={velocity?.last_sprint?.toString()} color="var(--accent)" />
+          </div>
+          <ResponsiveContainer width="100%" height={150}>
+            <LineChart data={velHistory} margin={{ top: 5, right: 16, left: -20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+              <XAxis dataKey="sprint" tick={{ fontSize: 12, fill: "var(--text-muted)" }} />
+              <YAxis domain={['auto', 'auto']} tick={{ fontSize: 12, fill: "var(--text-muted)" }} />
+              <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid var(--border)" }} />
+              <ReferenceLine y={velocity?.average} stroke="var(--text-muted)" strokeDasharray="3 3" />
+              <Line type="monotone" dataKey="velocity" stroke="var(--green)" strokeWidth={2.5} dot={{ r: 4 }} name="Velocity" />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
       </div>
 
-      {/* -----------------------------------------------------------------------
-       * TODO 3 — At-Risk Items List
-       * -----------------------------------------------------------------------
-       * Render a card titled "At-Risk Items — Sprint 9".
-       *
-       * Data: slippage?.at_risk  (array of { ticket_id, title, risk_level, reason })
-       *
-       * For each item render a row div with:
-       *   - Left border coloured by risk level: high=var(--red), medium=var(--amber), low=var(--accent)
-       *   - Icon: AlertTriangle for high, TrendingDown for medium, Zap for low  (14px)
-       *   - Ticket ID (mono, accent colour)
-       *   - Title (bold)
-       *   - Badge: "high risk" / "medium risk" / "low risk"
-       *     class: badge-red / badge-amber / badge-blue respectively
-       *   - Below: reason text (text-secondary, 13px)
-       *
-       * Render a placeholder "<p>No at-risk items</p>" when the array is empty.
-       * ----------------------------------------------------------------------- */}
       <div className="card">
         <div style={styles.cardTitle}>At-Risk Items — Sprint 9</div>
-        <p style={{ color:"var(--text-muted)", fontFamily:"var(--font-mono)", fontSize:13, marginTop:12 }}>
-          ⚠️ TODO 3 — render at-risk items list here
-          ({slippage?.at_risk?.length ?? 0} items available in slippage.at_risk)
-        </p>
+        {(!slippage?.at_risk || slippage.at_risk.length === 0) ? (
+          <p style={{ color: "var(--text-muted)", fontSize: 14, marginTop: 12 }}>No at-risk items</p>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 12 }}>
+            {slippage.at_risk.map((item: any) => {
+              const Icon = item.risk_level === "high" ? AlertTriangle : item.risk_level === "medium" ? TrendingDown : Zap;
+              const bColor = riskColors[item.risk_level] || "var(--accent)";
+              const badgeClass = item.risk_level === "high" ? "badge-red" : item.risk_level === "medium" ? "badge-amber" : "badge-blue";
+
+              return (
+                <div key={item.ticket_id} style={{ ...styles.riskRow, borderLeft: `4px solid ${bColor}` }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                    <Icon size={14} color={bColor} />
+                    <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--accent)" }}>{item.ticket_id}</span>
+                    <span style={{ fontWeight: 600, fontSize: 14 }}>{item.title}</span>
+                    <span className={`badge ${badgeClass}`}>{item.risk_level} risk</span>
+                  </div>
+                  <div style={{ fontSize: 13, color: "var(--text-secondary)", paddingLeft: 22 }}>
+                    {item.reason}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -162,4 +191,5 @@ const styles: Record<string, React.CSSProperties> = {
   title:    { fontSize:22, fontWeight:700, letterSpacing:"-0.02em" },
   probCard: { display:"flex", alignItems:"center", gap:14, padding:"14px 20px", border:"2px solid", borderRadius:12, background:"var(--bg-surface)" },
   cardTitle: { fontSize:12, fontWeight:600, color:"var(--text-muted)", textTransform:"uppercase" as const, letterSpacing:"0.06em", fontFamily:"var(--font-mono)", marginBottom:12 },
+  riskRow:  { background: "var(--bg-overlay)", border: "1px solid var(--border)", borderRadius: "0 8px 8px 0", padding: "12px 16px" },
 };

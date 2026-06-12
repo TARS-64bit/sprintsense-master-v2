@@ -71,8 +71,39 @@ def build_slack_blocks(
     current_day: int,
     at_risk: list,
 ) -> dict:
-    # TODO 1 — implement this function
-    raise NotImplementedError("build_slack_blocks not implemented")
+    pct = round(probability * 100)
+    status_text = "declining" if pct < 70 else "on-track"
+
+    blocks = [
+        {
+            "type": "header",
+            "text": {
+                "type": "plain_text",
+                "text": f"⚠️ SprintSense Alert — Day {current_day}"
+            }
+        },
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": f"Sprint completion probability: *{pct}%*\nStatus: {status_text} — {len(at_risk)} items at risk"
+            }
+        },
+        {
+            "type": "divider"
+        }
+    ]
+
+    for item in at_risk:
+        blocks.append({
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": f"*[{item['risk_level'].upper()}]* `{item['ticket_id']}` — {item['title']}\n>{item['reason']}"
+            }
+        })
+
+    return {"blocks": blocks}
 
 
 # ---------------------------------------------------------------------------
@@ -106,8 +137,25 @@ async def send_slack_alert(
     at_risk: list,
     webhook_url: Optional[str] = None,
 ) -> None:
-    # TODO 2 — implement this function
-    raise NotImplementedError("send_slack_alert not implemented")
+    if probability >= ALERT_THRESHOLD:
+        return
+
+    url = webhook_url or os.getenv("SLACK_WEBHOOK_URL")
+    if not url:
+        logger.warning("SLACK_WEBHOOK_URL not set")
+        return
+
+    payload = build_slack_blocks(probability, current_day, at_risk)
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(url, json=payload)
+            if resp.status_code == 200:
+                logger.info(f"Slack alert sent (HTTP {resp.status_code})")
+            else:
+                logger.warning(f"Slack alert failed: {resp.text}")
+    except Exception as e:
+        logger.exception(f"Exception sending Slack alert: {e}")
 
 
 # ---------------------------------------------------------------------------
@@ -130,9 +178,57 @@ async def send_slack_alert(
 #
 # Acceptance: returns a non-empty HTML string; does not raise on empty input.
 
+import re
+
 def markdown_to_html(text: str) -> str:
-    # TODO 3 — implement this function
-    raise NotImplementedError("markdown_to_html not implemented")
+    if not text:
+        return "<html><body><p></p></body></html>"
+
+    # 1. **bold** → <strong>bold</strong>
+    html = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', text)
+
+    # 2. *italic* → <em>italic</em>
+    html = re.sub(r'(?<!\*)\*(?!\*)(.*?)(?<!\*)\*(?!\*)', r'<em>\1</em>', html)
+
+    # 3. `code`   → <code>code</code>
+    html = re.sub(r'`(.*?)`', r'<code>\1</code>', html)
+
+    lines = html.split('\n')
+    processed_lines = []
+    in_list = False
+
+    for line in lines:
+        # 4. Lines starting with "# " → <h2>...</h2>
+        if line.startswith("# "):
+            if in_list:
+                processed_lines.append("</ul>")
+                in_list = False
+            processed_lines.append(f"<h2>{line[2:]}</h2>")
+        # 5. Lines starting with "- " → <li>...</li>
+        elif line.startswith("- "):
+            if not in_list:
+                processed_lines.append("<ul>")
+                in_list = True
+            processed_lines.append(f"<li>{line[2:]}</li>")
+        else:
+            if in_list:
+                processed_lines.append("</ul>")
+                in_list = False
+            processed_lines.append(line)
+
+    if in_list:
+        processed_lines.append("</ul>")
+
+    html = '\n'.join(processed_lines)
+
+    # 6. "\n\n" → </p><p>
+    html = html.replace('\n\n', '</p><p>')
+
+    # 7. Remaining "\n" → <br/>
+    html = html.replace('\n', '<br/>')
+
+    # 8. Wrap
+    return f"<html><body><p>{html}</p></body></html>"
 
 
 # ---------------------------------------------------------------------------
@@ -172,5 +268,32 @@ async def send_email_digest(
     subject: str = "SprintSense Daily Digest",
     api_key: Optional[str] = None,
 ) -> None:
-    # TODO 4 — implement this function
-    raise NotImplementedError("send_email_digest not implemented")
+    resolved_api_key = api_key or os.getenv("SENDGRID_API_KEY")
+    if not resolved_api_key:
+        logger.warning("SENDGRID_API_KEY not set")
+        return
+
+    recipient = to_email or os.getenv("ALERT_TO_EMAIL", "team@sprintsense.ai")
+
+    try:
+        html = markdown_to_html(digest_text)
+        payload = {
+            "personalizations": [{"to": [{"email": recipient}]}],
+            "from": {"email": SENDER_EMAIL, "name": "SprintSense"},
+            "subject": subject,
+            "content": [{"type": "text/html", "value": html}],
+        }
+
+        headers = {
+            "Authorization": f"Bearer {resolved_api_key}",
+            "Content-Type": "application/json",
+        }
+
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(SENDGRID_SEND_URL, json=payload, headers=headers)
+            if resp.status_code == 202:
+                logger.info(f"Email digest sent to {recipient}")
+            else:
+                logger.warning(f"SendGrid error {resp.status_code}: {resp.text[:120]}")
+    except Exception as e:
+        logger.exception(f"Exception sending email digest: {e}")
