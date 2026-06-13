@@ -32,8 +32,8 @@ def _get(key: str) -> str:
     from app.api.integrations import _get as get_config
     return get_config(key)
 
-def _auth_header() -> dict:
-    token = _get("GITHUB_TOKEN")
+def _auth_header(token_override: Optional[str] = None) -> dict:
+    token = token_override or _get("GITHUB_TOKEN")
     return {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json",
             "X-GitHub-Api-Version": "2022-11-28"}
 
@@ -45,48 +45,15 @@ def is_configured() -> bool:
         _get("GITHUB_REPO"),
     ])
 
-
-# ---------------------------------------------------------------------------
-# TODO 1 — fetch_issues()
-# ---------------------------------------------------------------------------
-# Pull open issues from a GitHub repo and return them in SprintSense schema.
-#
-# Parameters:
-#   owner      : str | None — overrides GITHUB_OWNER env var
-#   repo       : str | None — overrides GITHUB_REPO env var
-#   max_results: int        — page size (default 50)
-#
-# Steps:
-#   a. Resolve owner, repo, token; if any missing → log warning + return [].
-#   b. GET {GITHUB_API_URL}/repos/{owner}/{repo}/issues with:
-#        headers: _auth_header()
-#        params:  {"state": "open", "per_page": max_results}
-#   c. Filter out pull requests: skip items where issue.get("pull_request") is not None.
-#   d. Map each issue to:
-#        {
-#          "id":          f"GH-{issue['number']}",
-#          "title":       issue["title"],
-#          "description": issue["body"] or "",
-#          "labels":      [l["name"] for l in issue.get("labels", [])],
-#          "status":      "todo",
-#          "assignee":    issue["assignee"]["login"] if issue.get("assignee") else None,
-#        }
-#   e. Return mapped list.
-#   f. On any exception → logger.exception(...); return [].
-#
-# Acceptance:
-#   - Returns [] when env vars are missing (never raises).
-#   - Pull requests are excluded from the result.
-#   - Returned dicts match the Ticket schema used by BACKLOG_TICKETS.
-
 async def fetch_issues(
     owner: Optional[str] = None,
     repo: Optional[str] = None,
+    token_override: Optional[str] = None,
     max_results: int = 50,
 ) -> list:
     gh_owner = owner or _get("GITHUB_OWNER")
     gh_repo = repo or _get("GITHUB_REPO")
-    token = _get("GITHUB_TOKEN")
+    token = token_override or _get("GITHUB_TOKEN")
 
     if not (gh_owner and gh_repo and token):
         logger.warning("GitHub config missing (owner, repo, or token)")
@@ -97,7 +64,7 @@ async def fetch_issues(
 
     try:
         async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get(url, headers=_auth_header(), params=params)
+            resp = await client.get(url, headers=_auth_header(token), params=params)
             resp.raise_for_status()
             data = resp.json()
 

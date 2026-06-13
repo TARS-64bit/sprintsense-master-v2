@@ -7,23 +7,17 @@ from app.data.seed_data import (
 )
 from app.services.llm import generate_digest
 from app.services.capacity_planner import build_sprint_plan
-from app.services import github_client
+from app.api.backlog import get_active_tickets
 
 router = APIRouter()
 
-async def get_active_tickets():
-    if github_client.is_configured():
-        try:
-            issues = await github_client.fetch_issues()
-            if issues:
-                return issues
-        except Exception:
-            pass
-    return BACKLOG_TICKETS
-
 @router.get("/current")
-async def get_current_sprint():
-    tickets = await get_active_tickets()
+async def get_current_sprint(
+    x_github_token: Optional[str] = Header(default=None),
+    x_github_owner: Optional[str] = Header(default=None),
+    x_github_repo: Optional[str] = Header(default=None)
+):
+    tickets = await get_active_tickets(x_github_token, x_github_owner, x_github_repo)
 
     plan = build_sprint_plan(
         backlog_tickets=tickets,
@@ -54,8 +48,13 @@ def get_burndown():
 
 
 @router.get("/digest")
-async def get_standup_digest(x_llm_key: Optional[str] = Header(default=None)):
-    sprint_state = await get_current_sprint()
+async def get_standup_digest(
+    x_llm_key: Optional[str] = Header(default=None),
+    x_github_token: Optional[str] = Header(default=None),
+    x_github_owner: Optional[str] = Header(default=None),
+    x_github_repo: Optional[str] = Header(default=None)
+):
+    sprint_state = await get_current_sprint(x_github_token, x_github_owner, x_github_repo)
     digest_text, source = await generate_digest(
         sprint_state=sprint_state,
         burndown=BURNDOWN,

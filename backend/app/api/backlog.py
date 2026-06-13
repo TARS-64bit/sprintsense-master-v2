@@ -10,7 +10,17 @@ from app.services import github_client
 
 router = APIRouter()
 
-async def get_active_tickets():
+async def get_active_tickets(x_github_token: Optional[str] = None, x_github_owner: Optional[str] = None, x_github_repo: Optional[str] = None):
+    # Try fetching explicitly with headers
+    try:
+        if x_github_token and x_github_owner and x_github_repo:
+            issues = await github_client.fetch_issues(owner=x_github_owner, repo=x_github_repo, token_override=x_github_token)
+            if issues:
+                return issues
+    except Exception:
+        pass
+
+    # Fallback to configured environment
     if github_client.is_configured():
         try:
             issues = await github_client.fetch_issues()
@@ -18,11 +28,17 @@ async def get_active_tickets():
                 return issues
         except Exception:
             pass
+
     return BACKLOG_TICKETS
 
 @router.get("/")
-async def get_backlog(x_llm_key: Optional[str] = Header(default=None)):
-    tickets = await get_active_tickets()
+async def get_backlog(
+    x_llm_key: Optional[str] = Header(default=None),
+    x_github_token: Optional[str] = Header(default=None),
+    x_github_owner: Optional[str] = Header(default=None),
+    x_github_repo: Optional[str] = Header(default=None)
+):
+    tickets = await get_active_tickets(x_github_token, x_github_owner, x_github_repo)
 
     result = []
     for t in tickets:
@@ -40,8 +56,13 @@ def get_history():
 
 
 @router.get("/dependencies")
-async def get_dependencies(x_llm_key: Optional[str] = Header(default=None)):
-    tickets = await get_active_tickets()
+async def get_dependencies(
+    x_llm_key: Optional[str] = Header(default=None),
+    x_github_token: Optional[str] = Header(default=None),
+    x_github_owner: Optional[str] = Header(default=None),
+    x_github_repo: Optional[str] = Header(default=None)
+):
+    tickets = await get_active_tickets(x_github_token, x_github_owner, x_github_repo)
     edges = await detect_implicit_dependencies(
         tickets=tickets,
         explicit_edges=DEPENDENCY_EDGES,
@@ -56,9 +77,15 @@ def get_at_risk():
 
 
 @router.get("/{ticket_id}")
-async def get_ticket(ticket_id: str, x_llm_key: Optional[str] = Header(default=None)):
+async def get_ticket(
+    ticket_id: str,
+    x_llm_key: Optional[str] = Header(default=None),
+    x_github_token: Optional[str] = Header(default=None),
+    x_github_owner: Optional[str] = Header(default=None),
+    x_github_repo: Optional[str] = Header(default=None)
+):
     tid = ticket_id.upper()
-    tickets = await get_active_tickets()
+    tickets = await get_active_tickets(x_github_token, x_github_owner, x_github_repo)
     ticket = next((t for t in tickets if t["id"] == tid), None)
 
     if not ticket:
