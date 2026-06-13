@@ -15,7 +15,7 @@ async def get_active_tickets(x_github_token: Optional[str] = None, x_github_owne
     try:
         if x_github_token and x_github_owner and x_github_repo:
             issues = await github_client.fetch_issues(owner=x_github_owner, repo=x_github_repo, token_override=x_github_token)
-            if issues:
+            if issues is not None:
                 return issues
     except Exception:
         pass
@@ -24,7 +24,7 @@ async def get_active_tickets(x_github_token: Optional[str] = None, x_github_owne
     if github_client.is_configured():
         try:
             issues = await github_client.fetch_issues()
-            if issues:
+            if issues is not None:
                 return issues
         except Exception:
             pass
@@ -63,9 +63,17 @@ async def get_dependencies(
     x_github_repo: Optional[str] = Header(default=None)
 ):
     tickets = await get_active_tickets(x_github_token, x_github_owner, x_github_repo)
+
+    # Filter explicit edges so we don't return edges referencing missing tickets
+    ticket_ids = {t["id"] for t in tickets}
+    valid_explicit_edges = [
+        e for e in DEPENDENCY_EDGES
+        if e["from"] in ticket_ids and e["to"] in ticket_ids
+    ]
+
     edges = await detect_implicit_dependencies(
         tickets=tickets,
-        explicit_edges=DEPENDENCY_EDGES,
+        explicit_edges=valid_explicit_edges,
         api_key=x_llm_key
     )
     return {"edges": edges, "total": len(edges)}

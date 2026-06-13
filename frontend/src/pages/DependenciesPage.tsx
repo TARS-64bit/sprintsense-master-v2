@@ -22,6 +22,10 @@ export default function DependenciesPage() {
 
     const edges: { from: string; to: string; reason: string }[] = deps.edges ?? [];
     const tickets = backlog.tickets ?? [];
+
+    // Skip D3 render if no tickets are available
+    if (tickets.length === 0) return;
+
     const boardState = board;
 
     /* Derive a status for every node from the live board state */
@@ -57,6 +61,9 @@ export default function DependenciesPage() {
       .attr("orient", "auto")
       .append("path").attr("d", "M0,-5L10,0L0,5").attr("fill", "#3d7eff");
 
+    // Wrap everything in a primary group so we can apply zoom transformations
+    const gMain = svg.append("g");
+
     // 2. Force simulation
     const sim = d3.forceSimulation(nodes as any)
       .force("link",      d3.forceLink(links).id((d:any)=>d.id).distance(120))
@@ -65,18 +72,18 @@ export default function DependenciesPage() {
       .force("collision", d3.forceCollide(50));
 
     // 3. Link lines
-    const link = svg.append("g").selectAll("line").data(links).join("line")
+    const link = gMain.append("g").selectAll("line").data(links).join("line")
       .attr("stroke", "#3d7eff").attr("stroke-opacity", 0.55)
       .attr("stroke-width", 1.5).attr("marker-end", "url(#arrow)");
 
     // 4. Link labels
-    const linkLabel = svg.append("g").selectAll("text").data(links).join("text")
+    const linkLabel = gMain.append("g").selectAll("text").data(links).join("text")
       .attr("font-size", 9).attr("fill", "#4a5468")
       .attr("font-family", "Space Mono, monospace")
       .text((d:any) => d.reason.length > 28 ? d.reason.substring(0, 28) + "…" : d.reason);
 
     // 5. Node groups
-    const node = svg.append("g").selectAll("g").data(nodes).join("g")
+    const node = gMain.append("g").selectAll("g").data(nodes).join("g")
       .attr("cursor", "pointer")
       .call(d3.drag<any,any>()
         .on("start", (event, d:any) => { if (!event.active) sim.alphaTarget(0.3).restart(); d.fx=d.x; d.fy=d.y; })
@@ -155,13 +162,24 @@ export default function DependenciesPage() {
       node.attr("transform", (d:any) => `translate(${d.x},${d.y})`);
     });
 
-    // 9. Cleanup
+    // 9. Setup Zoom/Pan
+    const zoom = d3.zoom<SVGSVGElement, unknown>()
+      .scaleExtent([0.2, 3])
+      .on("zoom", (event) => {
+        gMain.attr("transform", event.transform);
+      });
+
+    svg.call(zoom);
+
+    // 10. Cleanup
     return () => {
       tooltip.remove();
       sim.stop();
     };
 
   }, [deps, backlog, board]);
+
+  const hasTickets = backlog?.tickets && backlog.tickets.length > 0;
 
   return (
     <div className="page-enter">
@@ -187,25 +205,39 @@ export default function DependenciesPage() {
         </div>
       </div>
 
-      {/* SVG canvas — D3 renders into this element */}
-      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        <svg ref={svgRef} style={{ width: "100%", height: 480, display: "block" }} />
+      {/* SVG canvas or Empty state */}
+      <div className="card" style={{ padding: 0, overflow: "hidden", minHeight: 480, display: "flex", flexDirection: "column" }}>
+        {!hasTickets && backlog && (
+           <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "var(--text-muted)" }}>
+              <div style={{ fontSize: 24, marginBottom: 8 }}>📭</div>
+              <div>No tickets found in the backlog.</div>
+              <div style={{ fontSize: 13, marginTop: 4 }}>Sync tickets from a repository or integration to generate a dependency graph.</div>
+           </div>
+        )}
+        <svg ref={svgRef} style={{ width: "100%", height: 480, display: hasTickets ? "block" : "none", cursor: "grab" }} />
       </div>
 
       {/* Dependency edge list (always rendered — no implementation needed) */}
-      <div className="card" style={{ marginTop: 14 }}>
-        <div style={styles.cardTitle}>Dependency Edges</div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
-          {(deps?.edges ?? []).map((e: any, i: number) => (
-            <div key={i} style={styles.edgeRow}>
-              <span style={{ fontFamily:"var(--font-mono)", fontSize:12, color:"var(--accent)" }}>{e.from}</span>
-              <span style={{ color:"var(--text-muted)", fontSize:12 }}>→ blocks →</span>
-              <span style={{ fontFamily:"var(--font-mono)", fontSize:12, color:"var(--purple)" }}>{e.to}</span>
-              <span style={{ flex:1, fontSize:12, color:"var(--text-secondary)", textAlign:"right" }}>{e.reason}</span>
-            </div>
-          ))}
+      {hasTickets && (
+        <div className="card" style={{ marginTop: 14 }}>
+          <div style={styles.cardTitle}>Dependency Edges</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
+            {(deps?.edges ?? []).map((e: any, i: number) => (
+              <div key={i} style={styles.edgeRow}>
+                <span style={{ fontFamily:"var(--font-mono)", fontSize:12, color:"var(--accent)" }}>{e.from}</span>
+                <span style={{ color:"var(--text-muted)", fontSize:12 }}>→ blocks →</span>
+                <span style={{ fontFamily:"var(--font-mono)", fontSize:12, color:"var(--purple)" }}>{e.to}</span>
+                <span style={{ flex:1, fontSize:12, color:"var(--text-secondary)", textAlign:"right" }}>{e.reason}</span>
+              </div>
+            ))}
+            {(deps?.edges ?? []).length === 0 && (
+              <div style={{ color: "var(--text-muted)", fontSize: 13, fontStyle: "italic", padding: "8px 0" }}>
+                No explicit dependency edges found between the tickets.
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
