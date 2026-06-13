@@ -3,13 +3,6 @@ import { useApi } from "../hooks/useApi";
 import { api } from "../utils/api";
 import * as d3 from "d3";
 
-/* Hardcoded story-point sizes for node radii — r = 14 + pts */
-const TICKET_POINTS: Record<string, number> = {
-  "TKT-101": 8, "TKT-102": 3, "TKT-103": 5, "TKT-104": 5,
-  "TKT-105": 8, "TKT-106": 8, "TKT-107": 13, "TKT-108": 8,
-  "TKT-109": 8, "TKT-110": 3,
-};
-
 const STATUS_COLOR: Record<string, string> = {
   in_progress: "#3d7eff",
   review:      "#a78bfa",
@@ -44,7 +37,7 @@ export default function DependenciesPage() {
     const nodeIds = Array.from(new Set([...edges.map(e => e.from), ...edges.map(e => e.to)]));
     const nodes = nodeIds.map(id => {
       const t = tickets.find((tk: any) => tk.id === id);
-      return { id, label: id, title: t?.title ?? id, pts: TICKET_POINTS[id] ?? 5, status: statusMap[id] ?? "backlog" };
+      return { id, label: id, title: t?.title ?? id, pts: t?.estimate?.points ?? 5, status: statusMap[id] ?? "backlog" };
     });
     const links = edges.map(e => ({ source: e.from, target: e.to, reason: e.reason }));
 
