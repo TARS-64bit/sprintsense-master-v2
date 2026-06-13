@@ -159,14 +159,13 @@ export default function SettingsPage() {
     setSaving(name);
     const merged = saveIntegrationConfigLocal(fields);
     try {
-      // post() is a TODO stub — once implemented this will persist to backend too
       await api.saveIntegrationConfig(merged as Record<string, string>);
-    } catch {
-      // post() not yet implemented — saved to localStorage only
+    } catch (e: any) {
+      console.error(`Failed to persist to backend: ${e.message}`);
     }
     await fetchIntStatus();
     setSaving(null);
-    setSyncMsg(prev => ({ ...prev, [name]: "Saved to local config." }));
+    setSyncMsg(prev => ({ ...prev, [name]: "Saved to config." }));
     setTimeout(() => setSyncMsg(prev => { const n = { ...prev }; delete n[name]; return n; }), 3000);
   }
 

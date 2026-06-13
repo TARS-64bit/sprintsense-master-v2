@@ -10,12 +10,21 @@ from app.services import github_client
 
 router = APIRouter()
 
+# Simple in-memory caches to prevent repeated identical LLM calls
+_llm_cache_estimates = {}
+_llm_cache_dependencies = None
+
+def clear_llm_cache():
+    global _llm_cache_dependencies
+    _llm_cache_estimates.clear()
+    _llm_cache_dependencies = None
+
 async def get_active_tickets(x_github_token: Optional[str] = None, x_github_owner: Optional[str] = None, x_github_repo: Optional[str] = None):
     # Try fetching explicitly with headers
     try:
         if x_github_token and x_github_owner and x_github_repo:
             issues = await github_client.fetch_issues(owner=x_github_owner, repo=x_github_repo, token_override=x_github_token)
-            if issues:
+            if issues is not None:
                 return issues
     except Exception:
         pass
@@ -24,7 +33,7 @@ async def get_active_tickets(x_github_token: Optional[str] = None, x_github_owne
     if github_client.is_configured():
         try:
             issues = await github_client.fetch_issues()
-            if issues:
+            if issues is not None:
                 return issues
         except Exception:
             pass
@@ -42,10 +51,21 @@ async def get_backlog(
 
     result = []
     for t in tickets:
-        mock_est = LLM_ESTIMATES.get(t["id"], {})
-        similar_ids = SIMILARITY_MATCHES.get(t["id"], [])
-        hist = [h for h in HISTORICAL_TICKETS if h["id"] in similar_ids]
-        est = await estimate_ticket(t, hist, api_key=x_llm_key, mock_estimate=mock_est)
+        tid = t["id"]
+
+        # Used cached estimate if available to save time
+        if tid in _llm_cache_estimates:
+            est = _llm_cache_estimates[tid]
+            similar_ids = SIMILARITY_MATCHES.get(tid, [])
+            hist = [h for h in HISTORICAL_TICKETS if h["id"] in similar_ids]
+        else:
+            mock_est = LLM_ESTIMATES.get(tid, {})
+            similar_ids = SIMILARITY_MATCHES.get(tid, [])
+            hist = [h for h in HISTORICAL_TICKETS if h["id"] in similar_ids]
+            est = await estimate_ticket(t, hist, api_key=x_llm_key, mock_estimate=mock_est)
+            if est.get("source") == "llm":
+                _llm_cache_estimates[tid] = est
+
         result.append({**t, "estimate": est, "similar_tickets": hist})
     return {"tickets": result, "total": len(result)}
 
@@ -62,12 +82,29 @@ async def get_dependencies(
     x_github_owner: Optional[str] = Header(default=None),
     x_github_repo: Optional[str] = Header(default=None)
 ):
+    global _llm_cache_dependencies
+
     tickets = await get_active_tickets(x_github_token, x_github_owner, x_github_repo)
-    edges = await detect_implicit_dependencies(
-        tickets=tickets,
-        explicit_edges=DEPENDENCY_EDGES,
-        api_key=x_llm_key
-    )
+
+    # Filter explicit edges so we don't return edges referencing missing tickets
+    ticket_ids = {t["id"] for t in tickets}
+    valid_explicit_edges = [
+        e for e in DEPENDENCY_EDGES
+        if e["from"] in ticket_ids and e["to"] in ticket_ids
+    ]
+
+    if _llm_cache_dependencies is not None:
+        edges = _llm_cache_dependencies
+    else:
+        edges = await detect_implicit_dependencies(
+            tickets=tickets,
+            explicit_edges=valid_explicit_edges,
+            api_key=x_llm_key
+        )
+        # Only cache if we actually provided a key (meaning the LLM ran, even if it returned 0 edges)
+        if x_llm_key and len(tickets) > 0:
+            _llm_cache_dependencies = edges
+
     return {"edges": edges, "total": len(edges)}
 
 
