@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useApi } from "../hooks/useApi";
 import { api } from "../utils/api";
 import * as d3 from "d3";
@@ -11,6 +12,14 @@ const STATUS_COLOR: Record<string, string> = {
   todo:        "#4a5468",
   backlog:     "#4a5468",
 };
+
+// Helper to color nodes based on complexity (story points)
+function getPointsColor(pts: number): string {
+  if (pts <= 3) return "#22d58a"; // Green for simple
+  if (pts <= 5) return "#3d7eff"; // Blue for medium
+  if (pts <= 8) return "#a78bfa"; // Purple for hard
+  return "#ff5a5f";               // Red/coral for very hard
+}
 
 export default function DependenciesPage() {
   const { data: deps }    = useApi(() => api.getDependencies());
@@ -93,10 +102,11 @@ export default function DependenciesPage() {
       .style("z-index", "1000")
       .style("max-width", "250px");
 
-    // 3. Link lines
-    const link = gMain.append("g").selectAll("line").data(links).join("line")
+    // 3. Link lines (now using path instead of line to allow geometric drawing via "d" attribute)
+    const link = gMain.append("g").selectAll("path").data(links).join("path")
       .attr("stroke", "#3d7eff").attr("stroke-opacity", 0.55)
       .attr("stroke-width", 1.0)
+      .attr("fill", "none")
       .attr("marker-end", "url(#arrow)")
       .style("cursor", "pointer")
       .on("mouseover", function(event, d: any) {
@@ -131,26 +141,23 @@ export default function DependenciesPage() {
         .on("end",   (event, d:any) => { if (!event.active) sim.alphaTarget(0); d.fx=null; d.fy=null; })
       );
 
-    // 6. Node elements
+    // 6. Node elements (Opaque with dynamic points color)
     node.append("circle")
       .attr("r", (d:any) => 24 + (d.pts * 1.5))
-      .attr("fill", (d:any) => {
-        const c = STATUS_COLOR[d.status] || "#4a5468";
-        // Convert hex to rgba string roughly
-        return d3.color(c)?.copy({opacity: 0.18})?.toString() || c;
-      })
+      .attr("fill", (d:any) => getPointsColor(d.pts))
       .attr("stroke", (d:any) => STATUS_COLOR[d.status] || "#4a5468")
-      .attr("stroke-width", 2);
+      .attr("stroke-width", 3);
 
     node.append("text")
-      .attr("dy", "-4px")
-      .attr("font-size", 10).attr("font-weight", 700).attr("fill", "#3d7eff")
+      .attr("dy", "-2px")
+      .attr("font-size", 10).attr("font-weight", 700).attr("fill", "#ffffff")
       .attr("text-anchor", "middle")
       .text((d:any) => d.id);
 
     node.append("text")
       .attr("dy", "12px")
-      .attr("font-size", 9).attr("fill", "#8b95a8")
+      .attr("font-size", 9).attr("fill", "rgba(255, 255, 255, 0.8)")
+      .attr("font-weight", 600)
       .attr("text-anchor", "middle")
       .text((d:any) => `${d.pts}p`);
 
@@ -172,13 +179,29 @@ export default function DependenciesPage() {
         tooltip.transition().duration(200).style("opacity", 0);
       });
 
-    // 8. Tick handler
+    // 8. Tick handler (with edge clipping geometry)
     sim.on("tick", () => {
-      link
-        .attr("x1", (d:any) => d.source.x)
-        .attr("y1", (d:any) => d.source.y)
-        .attr("x2", (d:any) => d.target.x)
-        .attr("y2", (d:any) => d.target.y);
+      link.attr("d", (d: any) => {
+        const dx = d.target.x - d.source.x;
+        const dy = d.target.y - d.source.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        // Target node radius + stroke width + small buffer for the arrow
+        const targetRadius = 24 + (d.target.pts * 1.5) + 3;
+
+        if (dist === 0) return "M0,0L0,0";
+
+        // Offset the line so it stops at the edge of the target circle
+        const targetX = d.target.x - (dx * targetRadius) / dist;
+        const targetY = d.target.y - (dy * targetRadius) / dist;
+
+        // Clip the source side to look cleaner too
+        const sourceRadius = 24 + (d.source.pts * 1.5) + 3;
+        const sourceX = d.source.x + (dx * sourceRadius) / dist;
+        const sourceY = d.source.y + (dy * sourceRadius) / dist;
+
+        return `M${sourceX},${sourceY} L${targetX},${targetY}`;
+      });
 
       node.attr("transform", (d:any) => `translate(${d.x},${d.y})`);
     });
@@ -228,24 +251,19 @@ export default function DependenciesPage() {
 
       {/* SVG canvas or Empty state */}
       <div
-        className={isFullscreen ? "" : "card"}
+        className="card"
         style={{
           padding: 0,
           overflow: "hidden",
-          height: isFullscreen ? "100vh" : 320,
+          height: 320,
           display: "flex",
           flexDirection: "column",
-          position: isFullscreen ? "fixed" : "relative",
-          top: isFullscreen ? 0 : "auto",
-          left: isFullscreen ? 0 : "auto",
-          width: isFullscreen ? "100vw" : "100%",
-          zIndex: isFullscreen ? 9999 : 1,
-          background: isFullscreen ? "var(--bg-surface)" : undefined
+          position: "relative"
         }}
       >
         <div style={{ position: "absolute", top: 12, right: 12, zIndex: 10 }}>
           <button
-            onClick={() => setIsFullscreen(!isFullscreen)}
+            onClick={() => setIsFullscreen(true)}
             style={{
               background: "var(--bg-elevated)",
               border: "1px solid var(--border)",
@@ -257,9 +275,9 @@ export default function DependenciesPage() {
               justifyContent: "center",
               color: "var(--text-secondary)"
             }}
-            title={isFullscreen ? "Minimize" : "Fullscreen"}
+            title="Fullscreen"
           >
-            {isFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
+            <Maximize size={16} />
           </button>
         </div>
 
@@ -270,8 +288,37 @@ export default function DependenciesPage() {
               <div style={{ fontSize: 13, marginTop: 4 }}>Sync tickets from a repository or integration to generate a dependency graph.</div>
            </div>
         )}
-        <svg ref={svgRef} style={{ width: "100%", height: "100%", display: hasTickets ? "block" : "none", cursor: "grab" }} />
+
+        {/* Render inline SVG only when NOT fullscreen */}
+        {!isFullscreen && (
+           <svg ref={svgRef} style={{ width: "100%", height: "100%", display: hasTickets ? "block" : "none", cursor: "grab" }} />
+        )}
       </div>
+
+      {/* Fullscreen Portal */}
+      {isFullscreen && createPortal(
+        <div style={{
+          position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh",
+          background: "var(--bg-surface)", zIndex: 9999,
+          display: "flex", flexDirection: "column"
+        }}>
+          <div style={{ position: "absolute", top: 16, right: 16, zIndex: 10 }}>
+            <button
+              onClick={() => setIsFullscreen(false)}
+              style={{
+                background: "var(--bg-elevated)", border: "1px solid var(--border)",
+                borderRadius: 6, padding: 8, cursor: "pointer", display: "flex",
+                alignItems: "center", justifyContent: "center", color: "var(--text-secondary)"
+              }}
+              title="Minimize"
+            >
+              <Minimize size={20} />
+            </button>
+          </div>
+          <svg ref={svgRef} style={{ width: "100%", height: "100%", display: "block", cursor: "grab" }} />
+        </div>,
+        document.body
+      )}
 
       {/* Dependency edge list (always rendered — no implementation needed) */}
       {hasTickets && (
