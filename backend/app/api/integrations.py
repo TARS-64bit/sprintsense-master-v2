@@ -9,7 +9,7 @@ POST /api/integrations/slack/test  — send a test Slack message (TODO stub)
 """
 import os
 import logging
-from fastapi import APIRouter
+from fastapi import APIRouter, Header
 from pydantic import BaseModel
 from typing import Optional
 
@@ -19,13 +19,13 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # In-memory config store — holds credentials saved via POST /api/integrations/config.
-# Treated the same as env vars: env vars take precedence; these are the fallback.
+# Frontend config saved here takes precedence over environment variables.
 _config: dict = {}
 
 
 def _get(key: str) -> str:
-    """Return env var value, falling back to in-memory config."""
-    return os.getenv(key) or _config.get(key, "")
+    """Return in-memory config value, falling back to env var."""
+    return _config.get(key) or os.getenv(key, "")
 
 
 # ── Request models ──────────────────────────────────────────────────────────
@@ -141,16 +141,21 @@ async def sync_jira():
     return {"synced_tickets": len(tickets), "synced_sprints": len(history)}
 
 @router.post("/github/sync")
-async def sync_github():
-    issues = await github_client.fetch_issues()
+async def sync_github(
+    x_github_token: Optional[str] = Header(default=None),
+    x_github_owner: Optional[str] = Header(default=None),
+    x_github_repo: Optional[str] = Header(default=None),
+):
+    issues = await github_client.fetch_issues(
+        owner=x_github_owner,
+        repo=x_github_repo,
+        token_override=x_github_token
+    )
 
-    existing_ids = {t["id"]: i for i, t in enumerate(BACKLOG_TICKETS)}
+    BACKLOG_TICKETS.clear()
+
     for issue in issues:
-        if issue["id"] in existing_ids:
-            BACKLOG_TICKETS[existing_ids[issue["id"]]] = issue
-        else:
-            BACKLOG_TICKETS.append(issue)
-            existing_ids[issue["id"]] = len(BACKLOG_TICKETS) - 1
+        BACKLOG_TICKETS.append(issue)
 
     return {"synced": len(issues)}
 
