@@ -38,12 +38,17 @@ export default function DependenciesPage() {
     tickets.forEach((t: any) => { if (!statusMap[t.id]) statusMap[t.id] = "backlog"; });
 
     /* Build node and link arrays for D3 */
-    const nodeIds = Array.from(new Set([...edges.map(e => e.from), ...edges.map(e => e.to)]));
-    const nodes = nodeIds.map(id => {
-      const t = tickets.find((tk: any) => tk.id === id);
-      return { id, label: id, title: t?.title ?? id, pts: t?.estimate?.points ?? 5, status: statusMap[id] ?? "backlog" };
-    });
-    const links = edges.map(e => ({ source: e.from, target: e.to, reason: e.reason }));
+    const nodes = tickets.map((t: any) => ({
+      id: t.id,
+      label: t.id,
+      title: t.title ?? t.id,
+      pts: t.estimate?.points ?? 5,
+      status: statusMap[t.id] ?? "backlog"
+    }));
+
+    // Only map edges where both source and target actually exist in our nodes array
+    const validLinks = edges.filter(e => tickets.some((t: any) => t.id === e.from) && tickets.some((t: any) => t.id === e.to));
+    const links = validLinks.map(e => ({ source: e.from, target: e.to, reason: e.reason }));
 
     const svg = d3.select(svgRef.current);
     svg.selectAll("*").remove();
