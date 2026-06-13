@@ -37,21 +37,6 @@ export default function TeamPage() {
   // We start with the seed members from the backend
   let members = teamData?.members ? [...teamData.members] : [];
 
-  // Add any implicit members that were found in the backlog data (e.g. from GitHub integrations)
-  // but weren't in the default dummy team array.
-  Object.keys(memberWork).forEach(assigneeKey => {
-    // Check if they exist by ID or Name
-    const exists = members.some((m: any) => m.id === assigneeKey || m.name === assigneeKey || m.name.toLowerCase() === assigneeKey.toLowerCase());
-    if (!exists) {
-      members.push({
-        id: assigneeKey,
-        name: assigneeKey,
-        role: "Engineer",
-        capacity_hours: 40, // Default generic capacity
-        avatar: assigneeKey.substring(0, 2).toUpperCase()
-      });
-    }
-  });
 
   const capacityChart = members.map((m: any, i: number) => {
     // Map to the assignee key. Seed data maps to `id`, integrations usually map to `name` or raw `assigneeKey`.
