@@ -113,7 +113,10 @@ export default function TeamPage() {
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
             <XAxis dataKey="name" tick={{ fill: "var(--text-muted)", fontSize: 12 }} />
             <YAxis tick={{ fill: "var(--text-muted)", fontSize: 11 }} />
-            <Tooltip contentStyle={{ background: "var(--bg-overlay)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }} />
+            <Tooltip
+              cursor={{ fill: "var(--bg-elevated)", opacity: 0.4 }}
+              contentStyle={{ background: "var(--bg-overlay)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }}
+            />
             <Bar dataKey="capacity"  name="Capacity"  fill="#252d3d" radius={[4, 4, 0, 0]} />
             <Bar dataKey="allocated" name="Allocated" radius={[4, 4, 0, 0]}
               fill="var(--accent)"

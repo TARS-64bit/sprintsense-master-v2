@@ -91,3 +91,41 @@ async def fetch_issues(
     except Exception as e:
         logger.exception(f"Error fetching GitHub issues: {e}")
         return []
+
+async def fetch_collaborators(
+    owner: Optional[str] = None,
+    repo: Optional[str] = None,
+    token_override: Optional[str] = None,
+) -> list:
+    gh_owner = owner or _get("GITHUB_OWNER")
+    gh_repo = repo or _get("GITHUB_REPO")
+    token = token_override or _get("GITHUB_TOKEN")
+
+    if not (gh_owner and gh_repo and token):
+        return []
+
+    url = f"{GITHUB_API_URL}/repos/{gh_owner}/{gh_repo}/collaborators"
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(url, headers=_auth_header(token))
+            resp.raise_for_status()
+            data = resp.json()
+
+            members = []
+            for user in data:
+                members.append({
+                    "id": user.get("login"),
+                    "name": user.get("login"),
+                    "role": "Engineer",
+                    "capacity_hours": 40,
+                    "avatar": user.get("login")[:2].upper() if user.get("login") else "??"
+                })
+            return members
+    except httpx.HTTPStatusError as e:
+        # 403 or 404 often happens if token lacks admin/push permissions to view collaborators.
+        logger.warning(f"Failed to fetch collaborators (status {e.response.status_code}). Token might lack permissions.")
+        return []
+    except Exception as e:
+        logger.exception(f"Error fetching GitHub collaborators: {e}")
+        return []

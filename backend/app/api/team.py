@@ -5,6 +5,8 @@ from app.api.backlog import get_active_tickets
 
 router = APIRouter()
 
+# Global cache for integration collaborators populated by integrations.py
+_integration_team_cache = []
 
 @router.get("/")
 async def get_team(
@@ -15,11 +17,17 @@ async def get_team(
     tickets = await get_active_tickets(x_github_token, x_github_owner, x_github_repo)
 
     # If the active tickets match the mock seed data exactly, return the dummy team.
-    # Otherwise, we are in an integration mode (GitHub/Jira) and should infer the team from assignees.
     if tickets is BACKLOG_TICKETS:
         return {"members": TEAM_MEMBERS}
 
-    # We are in integration mode. Build team dynamically from assignees.
+    # If we successfully fetched collaborators during sync, return them directly.
+    # They represent everyone in the repo, not just people with active tickets.
+    if _integration_team_cache:
+        return {"members": _integration_team_cache}
+
+    # Fallback: if we are in integration mode but have no collaborators fetched
+    # (e.g. read-only token lacking permissions to hit /collaborators API),
+    # dynamically infer the minimal team directly from assignees.
     dynamic_members = {}
     for t in tickets:
         assignee = t.get("assignee")
