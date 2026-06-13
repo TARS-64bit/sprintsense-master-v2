@@ -63,8 +63,8 @@ export default function DependenciesPage() {
     svg.append("defs").append("marker")
       .attr("id", "arrow")
       .attr("viewBox", "0 -5 10 10")
-      .attr("refX", 28).attr("refY", 0)
-      .attr("markerWidth", 6).attr("markerHeight", 6)
+      .attr("refX", 38).attr("refY", 0)
+      .attr("markerWidth", 4).attr("markerHeight", 4)
       .attr("orient", "auto")
       .append("path").attr("d", "M0,-5L10,0L0,5").attr("fill", "#3d7eff");
 
@@ -96,12 +96,12 @@ export default function DependenciesPage() {
     // 3. Link lines
     const link = gMain.append("g").selectAll("line").data(links).join("line")
       .attr("stroke", "#3d7eff").attr("stroke-opacity", 0.55)
-      .attr("stroke-width", 2.5) // Increased hit area
+      .attr("stroke-width", 1.0)
       .attr("marker-end", "url(#arrow)")
       .style("cursor", "pointer")
       .on("mouseover", function(event, d: any) {
         d3.select(this)
-          .attr("stroke-width", 4)
+          .attr("stroke-width", 2.5)
           .attr("stroke-opacity", 0.9);
 
         tooltip.transition().duration(200).style("opacity", 1);
@@ -117,7 +117,7 @@ export default function DependenciesPage() {
       })
       .on("mouseout", function() {
         d3.select(this)
-          .attr("stroke-width", 2.5)
+          .attr("stroke-width", 1.0)
           .attr("stroke-opacity", 0.55);
         tooltip.transition().duration(200).style("opacity", 0);
       });
@@ -133,7 +133,7 @@ export default function DependenciesPage() {
 
     // 6. Node elements
     node.append("circle")
-      .attr("r", (d:any) => 14 + d.pts)
+      .attr("r", (d:any) => 24 + (d.pts * 1.5))
       .attr("fill", (d:any) => {
         const c = STATUS_COLOR[d.status] || "#4a5468";
         // Convert hex to rgba string roughly
