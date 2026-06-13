@@ -1,7 +1,8 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useApi } from "../hooks/useApi";
 import { api } from "../utils/api";
 import * as d3 from "d3";
+import { Maximize, Minimize } from "lucide-react";
 
 const STATUS_COLOR: Record<string, string> = {
   in_progress: "#3d7eff",
@@ -16,6 +17,7 @@ export default function DependenciesPage() {
   const { data: backlog } = useApi(() => api.getBacklog());
   const { data: board }   = useApi(() => api.getBoard());
   const svgRef = useRef<SVGSVGElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
     if (!deps || !backlog || !svgRef.current) return;
@@ -54,7 +56,7 @@ export default function DependenciesPage() {
     svg.selectAll("*").remove();
 
     const W = svgRef.current.clientWidth || 700;
-    const H = 480;
+    const H = isFullscreen ? window.innerHeight : 320;
     svg.attr("viewBox", `0 0 ${W} ${H}`);
 
     // 1. Arrow marker
@@ -76,37 +78,51 @@ export default function DependenciesPage() {
       .force("center",    d3.forceCenter(W/2, H/2))
       .force("collision", d3.forceCollide(80));
 
+    // 7. Tooltip (moved up to be used by links as well)
+    const tooltip = d3.select("body").append("div")
+      .style("position", "absolute")
+      .style("pointer-events", "none")
+      .style("opacity", 0)
+      .style("background", "var(--bg-elevated)")
+      .style("color", "var(--text-primary)")
+      .style("padding", "8px 12px")
+      .style("border", "1px solid var(--border)")
+      .style("border-radius", "6px")
+      .style("font-size", "12px")
+      .style("box-shadow", "0 4px 6px rgba(0,0,0,0.1)")
+      .style("z-index", "1000")
+      .style("max-width", "250px");
+
     // 3. Link lines
     const link = gMain.append("g").selectAll("line").data(links).join("line")
       .attr("stroke", "#3d7eff").attr("stroke-opacity", 0.55)
-      .attr("stroke-width", 1.5).attr("marker-end", "url(#arrow)");
+      .attr("stroke-width", 2.5) // Increased hit area
+      .attr("marker-end", "url(#arrow)")
+      .style("cursor", "pointer")
+      .on("mouseover", function(event, d: any) {
+        d3.select(this)
+          .attr("stroke-width", 4)
+          .attr("stroke-opacity", 0.9);
 
-    // 4. Link labels
-    const linkLabel = gMain.append("g").selectAll("text").data(links).join("text")
-      .attr("font-size", 9).attr("fill", "#4a5468")
-      .attr("font-family", "Space Mono, monospace")
-      .attr("text-anchor", "middle")
-      .each(function(d: any) {
-        const text = d3.select(this);
-        const words = d.reason.split(/\s+/);
-        let line: string[] = [];
-        let lineNumber = 0;
-        const lineHeight = 1.1; // ems
-        let tspan = text.append("tspan").attr("x", 0).attr("y", 0).attr("dy", "0em");
-
-        for (const word of words) {
-          line.push(word);
-          tspan.text(line.join(" "));
-          if ((tspan.node()?.getComputedTextLength() || 0) > 120) {
-            line.pop();
-            tspan.text(line.join(" "));
-            line = [word];
-            tspan = text.append("tspan").attr("x", 0).attr("y", 0).attr("dy", ++lineNumber * lineHeight + "em").text(word);
-          }
-        }
+        tooltip.transition().duration(200).style("opacity", 1);
+        tooltip.html(`
+          <div style="font-family: var(--font-mono); font-size: 11px; color: var(--accent); margin-bottom: 4px;">${d.source.id} → blocks → ${d.target.id}</div>
+          <div style="font-size: 11px;">${d.reason}</div>
+        `);
+      })
+      .on("mousemove", (event) => {
+        tooltip
+          .style("left", (event.pageX + 15) + "px")
+          .style("top", (event.pageY - 28) + "px");
+      })
+      .on("mouseout", function() {
+        d3.select(this)
+          .attr("stroke-width", 2.5)
+          .attr("stroke-opacity", 0.55);
+        tooltip.transition().duration(200).style("opacity", 0);
       });
 
-    // 5. Node groups
+    // 4. Node groups
     const node = gMain.append("g").selectAll("g").data(nodes).join("g")
       .attr("cursor", "pointer")
       .call(d3.drag<any,any>()
@@ -138,21 +154,6 @@ export default function DependenciesPage() {
       .attr("text-anchor", "middle")
       .text((d:any) => `${d.pts}p`);
 
-    // 7. Tooltip
-    const tooltip = d3.select("body").append("div")
-      .style("position", "absolute")
-      .style("pointer-events", "none")
-      .style("opacity", 0)
-      .style("background", "var(--bg-elevated)")
-      .style("color", "var(--text-primary)")
-      .style("padding", "8px 12px")
-      .style("border", "1px solid var(--border)")
-      .style("border-radius", "6px")
-      .style("font-size", "12px")
-      .style("box-shadow", "0 4px 6px rgba(0,0,0,0.1)")
-      .style("z-index", "1000")
-      .style("max-width", "250px");
-
     node
       .on("mouseover", (event, d:any) => {
         tooltip.transition().duration(200).style("opacity", 1);
@@ -179,9 +180,6 @@ export default function DependenciesPage() {
         .attr("x2", (d:any) => d.target.x)
         .attr("y2", (d:any) => d.target.y);
 
-      linkLabel
-        .attr("transform", (d:any) => `translate(${(d.source.x + d.target.x) / 2}, ${(d.source.y + d.target.y) / 2})`);
-
       node.attr("transform", (d:any) => `translate(${d.x},${d.y})`);
     });
 
@@ -200,7 +198,7 @@ export default function DependenciesPage() {
       sim.stop();
     };
 
-  }, [deps, backlog, board]);
+  }, [deps, backlog, board, isFullscreen]);
 
   const hasTickets = backlog?.tickets && backlog.tickets.length > 0;
 
@@ -229,7 +227,42 @@ export default function DependenciesPage() {
       </div>
 
       {/* SVG canvas or Empty state */}
-      <div className="card" style={{ padding: 0, overflow: "hidden", minHeight: 480, display: "flex", flexDirection: "column" }}>
+      <div
+        className={isFullscreen ? "" : "card"}
+        style={{
+          padding: 0,
+          overflow: "hidden",
+          height: isFullscreen ? "100vh" : 320,
+          display: "flex",
+          flexDirection: "column",
+          position: isFullscreen ? "fixed" : "relative",
+          top: isFullscreen ? 0 : "auto",
+          left: isFullscreen ? 0 : "auto",
+          width: isFullscreen ? "100vw" : "100%",
+          zIndex: isFullscreen ? 9999 : 1,
+          background: isFullscreen ? "var(--bg-surface)" : undefined
+        }}
+      >
+        <div style={{ position: "absolute", top: 12, right: 12, zIndex: 10 }}>
+          <button
+            onClick={() => setIsFullscreen(!isFullscreen)}
+            style={{
+              background: "var(--bg-elevated)",
+              border: "1px solid var(--border)",
+              borderRadius: 6,
+              padding: 6,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "var(--text-secondary)"
+            }}
+            title={isFullscreen ? "Minimize" : "Fullscreen"}
+          >
+            {isFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
+          </button>
+        </div>
+
         {!hasTickets && backlog && (
            <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "var(--text-muted)" }}>
               <div style={{ fontSize: 24, marginBottom: 8 }}>📭</div>
@@ -237,7 +270,7 @@ export default function DependenciesPage() {
               <div style={{ fontSize: 13, marginTop: 4 }}>Sync tickets from a repository or integration to generate a dependency graph.</div>
            </div>
         )}
-        <svg ref={svgRef} style={{ width: "100%", height: 480, display: hasTickets ? "block" : "none", cursor: "grab" }} />
+        <svg ref={svgRef} style={{ width: "100%", height: "100%", display: hasTickets ? "block" : "none", cursor: "grab" }} />
       </div>
 
       {/* Dependency edge list (always rendered — no implementation needed) */}
