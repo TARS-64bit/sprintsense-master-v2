@@ -6,20 +6,32 @@ from app.data.seed_data import (
 )
 from app.services.llm import estimate_ticket
 from app.services.dependency_detector import detect_implicit_dependencies
+from app.services import github_client
 
 router = APIRouter()
 
+async def get_active_tickets():
+    if github_client.is_configured():
+        try:
+            issues = await github_client.fetch_issues()
+            if issues:
+                return issues
+        except Exception:
+            pass
+    return BACKLOG_TICKETS
 
 @router.get("/")
 async def get_backlog(x_llm_key: Optional[str] = Header(default=None)):
-    tickets = []
-    for t in BACKLOG_TICKETS:
+    tickets = await get_active_tickets()
+
+    result = []
+    for t in tickets:
         mock_est = LLM_ESTIMATES.get(t["id"], {})
         similar_ids = SIMILARITY_MATCHES.get(t["id"], [])
         hist = [h for h in HISTORICAL_TICKETS if h["id"] in similar_ids]
         est = await estimate_ticket(t, hist, api_key=x_llm_key, mock_estimate=mock_est)
-        tickets.append({**t, "estimate": est, "similar_tickets": hist})
-    return {"tickets": tickets, "total": len(tickets)}
+        result.append({**t, "estimate": est, "similar_tickets": hist})
+    return {"tickets": result, "total": len(result)}
 
 
 @router.get("/history")
@@ -29,8 +41,9 @@ def get_history():
 
 @router.get("/dependencies")
 async def get_dependencies(x_llm_key: Optional[str] = Header(default=None)):
+    tickets = await get_active_tickets()
     edges = await detect_implicit_dependencies(
-        tickets=BACKLOG_TICKETS,
+        tickets=tickets,
         explicit_edges=DEPENDENCY_EDGES,
         api_key=x_llm_key
     )
@@ -45,9 +58,12 @@ def get_at_risk():
 @router.get("/{ticket_id}")
 async def get_ticket(ticket_id: str, x_llm_key: Optional[str] = Header(default=None)):
     tid = ticket_id.upper()
-    ticket = next((t for t in BACKLOG_TICKETS if t["id"] == tid), None)
+    tickets = await get_active_tickets()
+    ticket = next((t for t in tickets if t["id"] == tid), None)
+
     if not ticket:
         raise HTTPException(status_code=404, detail=f"ticket {ticket_id} not found")
+
     mock_est = LLM_ESTIMATES.get(tid, {})
     similar_ids = SIMILARITY_MATCHES.get(tid, [])
     similar = [h for h in HISTORICAL_TICKETS if h["id"] in similar_ids]

@@ -28,17 +28,21 @@ logger = logging.getLogger(__name__)
 GITHUB_API_URL = "https://api.github.com"
 
 
+def _get(key: str) -> str:
+    from app.api.integrations import _get as get_config
+    return get_config(key)
+
 def _auth_header() -> dict:
-    token = os.getenv("GITHUB_TOKEN", "")
+    token = _get("GITHUB_TOKEN")
     return {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json",
             "X-GitHub-Api-Version": "2022-11-28"}
 
 
 def is_configured() -> bool:
     return all([
-        os.getenv("GITHUB_TOKEN"),
-        os.getenv("GITHUB_OWNER"),
-        os.getenv("GITHUB_REPO"),
+        _get("GITHUB_TOKEN"),
+        _get("GITHUB_OWNER"),
+        _get("GITHUB_REPO"),
     ])
 
 
@@ -80,9 +84,9 @@ async def fetch_issues(
     repo: Optional[str] = None,
     max_results: int = 50,
 ) -> list:
-    gh_owner = owner or os.getenv("GITHUB_OWNER")
-    gh_repo = repo or os.getenv("GITHUB_REPO")
-    token = os.getenv("GITHUB_TOKEN")
+    gh_owner = owner or _get("GITHUB_OWNER")
+    gh_repo = repo or _get("GITHUB_REPO")
+    token = _get("GITHUB_TOKEN")
 
     if not (gh_owner and gh_repo and token):
         logger.warning("GitHub config missing (owner, repo, or token)")

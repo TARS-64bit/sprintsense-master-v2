@@ -29,19 +29,23 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 
+def _get(key: str) -> str:
+    from app.api.integrations import _get as get_config
+    return get_config(key)
+
 def _auth_header() -> str:
-    email = os.getenv("JIRA_EMAIL", "")
-    token = os.getenv("JIRA_API_TOKEN", "")
+    email = _get("JIRA_EMAIL")
+    token = _get("JIRA_API_TOKEN")
     encoded = base64.b64encode(f"{email}:{token}".encode()).decode()
     return f"Basic {encoded}"
 
 
 def is_configured() -> bool:
     return all([
-        os.getenv("JIRA_URL"),
-        os.getenv("JIRA_EMAIL"),
-        os.getenv("JIRA_API_TOKEN"),
-        os.getenv("JIRA_PROJECT_KEY"),
+        _get("JIRA_URL"),
+        _get("JIRA_EMAIL"),
+        _get("JIRA_API_TOKEN"),
+        _get("JIRA_PROJECT_KEY"),
     ])
 
 
@@ -101,12 +105,12 @@ async def fetch_issues(
     project_key: Optional[str] = None,
     max_results: int = 50,
 ) -> list:
-    base_url = os.getenv("JIRA_URL")
+    base_url = _get("JIRA_URL")
     if not base_url:
         logger.warning("JIRA_URL not set")
         return []
 
-    key = project_key or os.getenv("JIRA_PROJECT_KEY")
+    key = project_key or _get("JIRA_PROJECT_KEY")
     if not key:
         logger.warning("JIRA_PROJECT_KEY not set")
         return []
@@ -194,8 +198,8 @@ async def fetch_issues(
 # Acceptance: returns [] when env vars missing; never raises.
 
 async def fetch_sprint_history(board_id: Optional[int] = None) -> list:
-    base_url = os.getenv("JIRA_URL")
-    b_id = board_id or os.getenv("JIRA_BOARD_ID")
+    base_url = _get("JIRA_URL")
+    b_id = board_id or _get("JIRA_BOARD_ID")
 
     if not base_url or not b_id:
         return []

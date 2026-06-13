@@ -1,0 +1,40 @@
+
+> sprintsense-frontend@1.0.0 start
+> react-scripts start
+
+(node:1748009) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:1748009) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+Starting the development server...
+
+Compiled with warnings.
+
+[eslint]
+src/pages/Dashboard.tsx
+  Line 5:3:  'LineChart' is defined but never used     @typescript-eslint/no-unused-vars
+  Line 9:3:  'TrendingDown' is defined but never used  @typescript-eslint/no-unused-vars
+
+src/pages/SprintPlanPage.tsx
+  Line 4:10:  'Calendar' is defined but never used  @typescript-eslint/no-unused-vars
+  Line 4:20:  'User' is defined but never used      @typescript-eslint/no-unused-vars
+
+src/pages/TeamPage.tsx
+  Line 5:10:  'User' is defined but never used  @typescript-eslint/no-unused-vars
+
+Search for the keywords to learn more about each warning.
+To ignore, add // eslint-disable-next-line to the line before.
+
+WARNING in [eslint]
+src/pages/Dashboard.tsx
+  Line 5:3:  'LineChart' is defined but never used     @typescript-eslint/no-unused-vars
+  Line 9:3:  'TrendingDown' is defined but never used  @typescript-eslint/no-unused-vars
+
+src/pages/SprintPlanPage.tsx
+  Line 4:10:  'Calendar' is defined but never used  @typescript-eslint/no-unused-vars
+  Line 4:20:  'User' is defined but never used      @typescript-eslint/no-unused-vars
+
+src/pages/TeamPage.tsx
+  Line 5:10:  'User' is defined but never used  @typescript-eslint/no-unused-vars
+
+webpack compiled with 1 warning
+No issues found.
