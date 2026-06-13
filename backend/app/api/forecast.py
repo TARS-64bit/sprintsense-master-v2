@@ -1,58 +1,42 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Header
+from typing import Optional
 from app.data.seed_data import (
-    SLIPPAGE_FORECAST, AT_RISK_ITEMS, AVG_VELOCITY, SPRINT_HISTORY,
-    BURNDOWN, PROPOSED_SPRINT,
+    BURNDOWN, SPRINT_HISTORY,
+    BACKLOG_TICKETS, LLM_ESTIMATES, DEPENDENCY_EDGES
 )
+from app.services.monte_carlo import run_simulation
+from app.api.backlog import get_active_tickets
+from datetime import datetime, timedelta
 
 router = APIRouter()
 
-
-from app.services.monte_carlo import run_simulation
-
 @router.get("/slippage")
-def get_slippage_forecast():
-    current_day = sum(1 for val in BURNDOWN["actual"] if val is not None)
+async def get_slippage_forecast(
+    x_llm_key: Optional[str] = Header(default=None),
+    x_github_token: Optional[str] = Header(default=None),
+    x_github_owner: Optional[str] = Header(default=None),
+    x_github_repo: Optional[str] = Header(default=None)
+):
+    tickets = await get_active_tickets(x_github_token, x_github_owner, x_github_repo)
 
-    remaining_pts = None
-    for val in reversed(BURNDOWN["actual"]):
-        if val is not None:
-            remaining_pts = val
-            break
+    # We dynamically run the monte-carlo simulation based on current actual burndown
+    actual_burndown = BURNDOWN.get("actual", [])
+    past_days = [v for v in actual_burndown if v is not None]
+    current_day = len(past_days)
+    remaining_points = past_days[-1] if past_days else 0
+    total_days = len(BURNDOWN.get("ideal", [])) - 1 # assuming 14 days, 0..14 indices
+    days_left = max(1, total_days - current_day + 1)
 
-    days_left = 10 - current_day
-    sprint_dates = BURNDOWN["days"][current_day:current_day+days_left]
+    start_date = datetime.strptime("2025-02-04", "%Y-%m-%d")
+    sprint_dates = [(start_date + timedelta(days=current_day+i)).strftime("%Y-%m-%d") for i in range(days_left)]
 
-    forecast = run_simulation(
-        remaining_points=remaining_pts,
+    result = run_simulation(
+        remaining_points=remaining_points,
         days_left=days_left,
         sprint_history=SPRINT_HISTORY,
         sprint_dates=sprint_dates,
-        burndown_actual=BURNDOWN["actual"],
+        burndown_actual=actual_burndown,
+        n_simulations=1000
     )
 
-    if forecast:
-        current_prob = forecast[0]["completion_probability"]
-        trend = "declining" if len(forecast) > 1 and forecast[-1]["completion_probability"] < forecast[0]["completion_probability"] else "stable"
-    else:
-        current_prob = None
-        trend = "stable"
-
-    return {
-        "forecast": forecast,
-        "current_day": current_day,
-        "current_probability": current_prob,
-        "trend": trend,
-        "at_risk": AT_RISK_ITEMS,
-    }
-
-
-@router.get("/velocity")
-def get_velocity_stats():
-    velocities = [s["velocity"] for s in SPRINT_HISTORY]
-    return {
-        "average": round(AVG_VELOCITY, 1),
-        "min": min(velocities),
-        "max": max(velocities),
-        "last_sprint": velocities[-1],
-        "history": velocities,
-    }
+    return result

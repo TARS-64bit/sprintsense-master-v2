@@ -15,9 +15,19 @@ export function setLlmKey(key: string): void {
 }
 
 function buildHeaders(): HeadersInit {
-  const key = getLlmKey();
   const h: Record<string, string> = { "Content-Type": "application/json" };
+  const key = getLlmKey();
   if (key) h["X-LLM-Key"] = key;
+
+  const cfgStr = localStorage.getItem("sprintsense_integration_config");
+  if (cfgStr) {
+    try {
+      const cfg = JSON.parse(cfgStr);
+      if (cfg.github_token) h["X-GitHub-Token"] = cfg.github_token;
+      if (cfg.github_owner) h["X-GitHub-Owner"] = cfg.github_owner;
+      if (cfg.github_repo) h["X-GitHub-Repo"] = cfg.github_repo;
+    } catch (e) {}
+  }
   return h;
 }
 
@@ -27,28 +37,6 @@ async function get<T>(path: string): Promise<T> {
   return res.json();
 }
 
-/* ---------------------------------------------------------------------------
- * TODO — implement post()
- * ---------------------------------------------------------------------------
- * A generic HTTP POST helper mirroring the existing get() above.
- *
- * Parameters:
- *   path : string  — API path, e.g. "/api/board/move"
- *   body : unknown — JSON-serialisable payload
- *
- * Steps:
- *   a. Call fetch(`${BASE}${path}`, {
- *        method:  "POST",
- *        headers: buildHeaders(),        // already includes Content-Type + LLM key
- *        body:    JSON.stringify(body),
- *      })
- *   b. If !res.ok → throw new Error(`API error ${res.status}: ${path}`)
- *   c. Return res.json() cast to T.
- *
- * Acceptance:
- *   - Mirrors get() in error handling.
- *   - buildHeaders() must be called so the LLM key is forwarded on POST too.
- * --------------------------------------------------------------------------- */
 async function post<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     method: "POST",
@@ -60,8 +48,6 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 }
 
 export const api = {
-  /* ── Read endpoints (all implemented) ─────────────────────────────────── */
-
   // Backlog
   getBacklog:       () => get<any>("/api/backlog/"),
   getBacklogHistory:() => get<any>("/api/backlog/history"),
@@ -86,20 +72,6 @@ export const api = {
   // LLM status
   getLlmStatus:     () => get<any>("/api/llm-status"),
 
-  /* ── Write endpoints (stubs — implement post() above first) ───────────── */
-
-  /* -------------------------------------------------------------------------
-   * TODO — updateTicketStatus()
-   * -------------------------------------------------------------------------
-   * Persist a board column change after drag-and-drop.
-   *
-   * Steps:
-   *   a. Call post<any>("/api/board/move", { ticket_id: ticketId, status: newStatus })
-   *   b. Return the result.
-   *
-   * Backend note: POST /api/board/move does not exist yet — add it in
-   * backend/app/api/board.py (see board.py TODO comment).
-   * ------------------------------------------------------------------------- */
   updateTicketStatus: (ticketId: string, newStatus: string) => {
     return post<any>("/api/board/move", { ticket_id: ticketId, status: newStatus });
   },

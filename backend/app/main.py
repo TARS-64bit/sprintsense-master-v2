@@ -10,7 +10,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_methods=["*"],
-    allow_headers=["*", "X-LLM-Key"],
+    allow_headers=["*", "X-LLM-Key", "X-GitHub-Token", "X-GitHub-Owner", "X-GitHub-Repo"],
     expose_headers=["*"],
 )
 

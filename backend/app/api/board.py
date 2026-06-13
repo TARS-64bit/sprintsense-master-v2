@@ -1,78 +1,39 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
-from app.data.seed_data import SPRINT_BOARD, BACKLOG_TICKETS, LLM_ESTIMATES
+from app.data.seed_data import SPRINT_BOARD, BACKLOG_TICKETS
+from app.services import github_client
 
 router = APIRouter()
 
-
 class MoveRequest(BaseModel):
     ticket_id: str
-    status: str   # "todo" | "in_progress" | "review" | "done"
-
-
-# ---------------------------------------------------------------------------
-# TODO — POST /api/board/move
-# ---------------------------------------------------------------------------
-# Move a ticket to a different Kanban column and return the updated board.
-#
-# Parameters (request body):
-#   ticket_id : str — e.g. "TKT-101"
-#   status    : str — target column: "todo" | "in_progress" | "review" | "done"
-#
-# Steps:
-#   a. Validate that status is one of the four valid columns; raise HTTP 400 otherwise.
-#   b. Search all four columns in SPRINT_BOARD for ticket_id; raise HTTP 404 if not found.
-#   c. Remove ticket_id from its current column list.
-#   d. Append ticket_id to the target column list.
-#   e. Find the ticket dict in BACKLOG_TICKETS and update its "status" field.
-#   f. Return get_board() — the full updated board state.
-#
-# Acceptance:
-#   - Ticket appears in exactly one column after the move.
-#   - Board state is consistent with SPRINT_BOARD after update.
-#   - Returns HTTP 400 for invalid status, HTTP 404 for unknown ticket_id.
-
-from fastapi import HTTPException
-
-@router.post("/move")
-def move_ticket(body: MoveRequest):
-    valid_status = ["todo", "in_progress", "review", "done"]
-    if body.status not in valid_status:
-        raise HTTPException(status_code=400, detail="Invalid status")
-
-    found_col = None
-    for col in valid_status:
-        if body.ticket_id in SPRINT_BOARD[col]:
-            found_col = col
-            break
-
-    if not found_col:
-        raise HTTPException(status_code=404, detail="Ticket not found on board")
-
-    SPRINT_BOARD[found_col].remove(body.ticket_id)
-    SPRINT_BOARD[body.status].append(body.ticket_id)
-
-    for ticket in BACKLOG_TICKETS:
-        if ticket["id"] == body.ticket_id:
-            ticket["status"] = body.status
-            break
-
-    return get_board()
-
+    from_column: str
+    to_column: str
 
 @router.get("/")
 def get_board():
-    def enrich(ids, column):
-        result = []
-        for tid in ids:
-            t = next((x for x in BACKLOG_TICKETS if x["id"] == tid), {})
-            est = LLM_ESTIMATES.get(tid, {})
-            result.append({**t, "status": column, "estimate": est})
-        return result
+    return SPRINT_BOARD
 
-    return {
-        "todo":        enrich(SPRINT_BOARD["todo"],        "todo"),
-        "in_progress": enrich(SPRINT_BOARD["in_progress"], "in_progress"),
-        "review":      enrich(SPRINT_BOARD["review"],      "review"),
-        "done":        enrich(SPRINT_BOARD["done"],        "done"),
-    }
+
+@router.post("/move")
+def move_ticket(req: MoveRequest):
+    tid = req.ticket_id
+    from_col = req.from_column
+    to_col = req.to_column
+
+    # Remove from origin column
+    if tid in SPRINT_BOARD.get(from_col, []):
+        SPRINT_BOARD[from_col].remove(tid)
+
+    # Add to target column
+    if to_col in SPRINT_BOARD and tid not in SPRINT_BOARD[to_col]:
+        SPRINT_BOARD[to_col].append(tid)
+
+    # Also update the ticket status in BACKLOG_TICKETS or Github issue cache if possible
+    # (Since GitHub issues might be read-only for now, we just update BACKLOG_TICKETS mock)
+    for t in BACKLOG_TICKETS:
+        if t["id"] == tid:
+            t["status"] = to_col
+            break
+
+    return {"status": "ok", "board": SPRINT_BOARD}
