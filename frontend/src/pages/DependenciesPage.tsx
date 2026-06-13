@@ -22,14 +22,16 @@ function getPointsColor(pts: number): string {
 }
 
 export default function DependenciesPage() {
-  const { data: deps }    = useApi(() => api.getDependencies());
-  const { data: backlog } = useApi(() => api.getBacklog());
-  const { data: board }   = useApi(() => api.getBoard());
+  const { data: deps, loading: depsLoading }       = useApi(() => api.getDependencies());
+  const { data: backlog, loading: backlogLoading } = useApi(() => api.getBacklog());
+  const { data: board }                            = useApi(() => api.getBoard());
   const svgRef = useRef<SVGSVGElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
+  const isLoading = depsLoading || backlogLoading;
+
   useEffect(() => {
-    if (!deps || !backlog || !svgRef.current) return;
+    if (isLoading || !deps || !backlog || !svgRef.current) return;
 
     const edges: { from: string; to: string; reason: string }[] = deps.edges ?? [];
     const tickets = backlog.tickets ?? [];
@@ -221,7 +223,7 @@ export default function DependenciesPage() {
       sim.stop();
     };
 
-  }, [deps, backlog, board, isFullscreen]);
+  }, [deps, backlog, board, isFullscreen, isLoading]);
 
   const hasTickets = backlog?.tickets && backlog.tickets.length > 0;
 
@@ -276,12 +278,21 @@ export default function DependenciesPage() {
               color: "var(--text-secondary)"
             }}
             title="Fullscreen"
+            disabled={isLoading}
           >
             <Maximize size={16} />
           </button>
         </div>
 
-        {!hasTickets && backlog && (
+        {isLoading && (
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "var(--text-muted)", gap: 16 }}>
+             <div className="pulse" style={{ width: 40, height: 40, border: "3px solid var(--accent)", borderRadius: "50%", borderTopColor: "transparent", animation: "spin 1s linear infinite" }} />
+             <div style={{ fontSize: 14, fontWeight: 600, color: "var(--fg)" }}>AI is analyzing tickets...</div>
+             <div style={{ fontSize: 13 }}>Inferring implicit dependencies and calculating story points.</div>
+          </div>
+        )}
+
+        {!isLoading && !hasTickets && backlog && (
            <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "var(--text-muted)" }}>
               <div style={{ fontSize: 24, marginBottom: 8 }}>📭</div>
               <div>No tickets found in the backlog.</div>
@@ -289,8 +300,8 @@ export default function DependenciesPage() {
            </div>
         )}
 
-        {/* Render inline SVG only when NOT fullscreen */}
-        {!isFullscreen && (
+        {/* Render inline SVG only when NOT fullscreen and NOT loading */}
+        {!isFullscreen && !isLoading && (
            <svg ref={svgRef} style={{ width: "100%", height: "100%", display: hasTickets ? "block" : "none", cursor: "grab" }} />
         )}
       </div>
@@ -321,7 +332,7 @@ export default function DependenciesPage() {
       )}
 
       {/* Dependency edge list (always rendered — no implementation needed) */}
-      {hasTickets && (
+      {!isLoading && hasTickets && (
         <div className="card" style={{ marginTop: 14 }}>
           <div style={styles.cardTitle}>Dependency Edges</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
