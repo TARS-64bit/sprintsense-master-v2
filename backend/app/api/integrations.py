@@ -14,6 +14,7 @@ from pydantic import BaseModel
 from typing import Optional
 
 from app.services import jira_client, github_client
+from app.api.backlog import clear_llm_cache
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -138,6 +139,8 @@ async def sync_jira():
         SPRINT_HISTORY.clear()
         SPRINT_HISTORY.extend(history)
 
+    clear_llm_cache()
+
     return {"synced_tickets": len(tickets), "synced_sprints": len(history)}
 
 @router.post("/github/sync")
@@ -156,6 +159,8 @@ async def sync_github(
 
     for issue in issues:
         BACKLOG_TICKETS.append(issue)
+
+    clear_llm_cache()
 
     return {"synced": len(issues)}
 

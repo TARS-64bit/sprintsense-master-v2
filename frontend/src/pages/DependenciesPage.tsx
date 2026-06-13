@@ -71,10 +71,10 @@ export default function DependenciesPage() {
 
     // 2. Force simulation
     const sim = d3.forceSimulation(nodes as any)
-      .force("link",      d3.forceLink(links).id((d:any)=>d.id).distance(120))
-      .force("charge",    d3.forceManyBody().strength(-350))
+      .force("link",      d3.forceLink(links).id((d:any)=>d.id).distance(250))
+      .force("charge",    d3.forceManyBody().strength(-600))
       .force("center",    d3.forceCenter(W/2, H/2))
-      .force("collision", d3.forceCollide(50));
+      .force("collision", d3.forceCollide(80));
 
     // 3. Link lines
     const link = gMain.append("g").selectAll("line").data(links).join("line")
@@ -85,7 +85,26 @@ export default function DependenciesPage() {
     const linkLabel = gMain.append("g").selectAll("text").data(links).join("text")
       .attr("font-size", 9).attr("fill", "#4a5468")
       .attr("font-family", "Space Mono, monospace")
-      .text((d:any) => d.reason.length > 28 ? d.reason.substring(0, 28) + "…" : d.reason);
+      .attr("text-anchor", "middle")
+      .each(function(d: any) {
+        const text = d3.select(this);
+        const words = d.reason.split(/\s+/);
+        let line: string[] = [];
+        let lineNumber = 0;
+        const lineHeight = 1.1; // ems
+        let tspan = text.append("tspan").attr("x", 0).attr("y", 0).attr("dy", "0em");
+
+        for (const word of words) {
+          line.push(word);
+          tspan.text(line.join(" "));
+          if ((tspan.node()?.getComputedTextLength() || 0) > 120) {
+            line.pop();
+            tspan.text(line.join(" "));
+            line = [word];
+            tspan = text.append("tspan").attr("x", 0).attr("y", 0).attr("dy", ++lineNumber * lineHeight + "em").text(word);
+          }
+        }
+      });
 
     // 5. Node groups
     const node = gMain.append("g").selectAll("g").data(nodes).join("g")
@@ -161,8 +180,7 @@ export default function DependenciesPage() {
         .attr("y2", (d:any) => d.target.y);
 
       linkLabel
-        .attr("x", (d:any) => (d.source.x + d.target.x) / 2)
-        .attr("y", (d:any) => (d.source.y + d.target.y) / 2);
+        .attr("transform", (d:any) => `translate(${(d.source.x + d.target.x) / 2}, ${(d.source.y + d.target.y) / 2})`);
 
       node.attr("transform", (d:any) => `translate(${d.x},${d.y})`);
     });
