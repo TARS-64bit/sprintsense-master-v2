@@ -1,32 +1,68 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { useApi } from "../hooks/useApi";
 import { api } from "../utils/api";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { User } from "lucide-react";
 
-const COLORS = ["#3d7eff", "#22d58a", "#a78bfa", "#f5a623", "#22d3ee"];
-
-const MEMBER_WORK: Record<string, { ticket: string; pts: number }[]> = {
-  "USR-1": [{ ticket: "TKT-101", pts: 8 }, { ticket: "TKT-103", pts: 5 }],
-  "USR-2": [{ ticket: "TKT-110", pts: 3 }, { ticket: "TKT-105", pts: 8 }],
-  "USR-3": [{ ticket: "TKT-102", pts: 3 }],
-  "USR-4": [{ ticket: "TKT-109", pts: 8 }],
-  "USR-5": [],
-};
+const COLORS = ["#3d7eff", "#22d58a", "#a78bfa", "#f5a623", "#22d3ee", "#e83e8c", "#6f42c1", "#17a2b8", "#28a745"];
 
 export default function TeamPage() {
-  const { data, loading } = useApi(() => api.getTeam());
+  const { data: teamData, loading: teamLoading } = useApi(() => api.getTeam());
+  const { data: backlogData, loading: backlogLoading } = useApi(() => api.getBacklog());
 
-  if (loading) return <div className="loading-spinner"><div className="pulse" />Loading team...</div>;
+  const memberWork = useMemo(() => {
+    const workMap: Record<string, { ticket: string; pts: number }[]> = {};
+    if (!backlogData?.tickets) return workMap;
 
-  const members = data?.members ?? [];
+    backlogData.tickets.forEach((t: any) => {
+      // If a ticket has no assignee, we don't attribute its work to anyone
+      if (!t.assignee) return;
 
-  const capacityChart = members.map((m: any, i: number) => ({
-    name: m.name.split(" ")[0],
-    capacity: m.capacity_hours,
-    allocated: (MEMBER_WORK[m.id] ?? []).reduce((s: number, w: any) => s + w.pts * 4, 0),
-    color: COLORS[i],
-  }));
+      // We normalize assignee strings. The seed data uses exact ID match ("USR-1").
+      // Integrations use strings like "johndoe". We map directly to that string.
+      const assigneeKey = String(t.assignee);
+
+      if (!workMap[assigneeKey]) {
+        workMap[assigneeKey] = [];
+      }
+
+      const pts = t.estimate?.points ?? 5;
+      workMap[assigneeKey].push({ ticket: t.id, pts });
+    });
+
+    return workMap;
+  }, [backlogData]);
+
+  if (teamLoading || backlogLoading) return <div className="loading-spinner"><div className="pulse" />Loading team...</div>;
+
+  // We start with the seed members from the backend
+  let members = teamData?.members ? [...teamData.members] : [];
+
+  // Add any implicit members that were found in the backlog data (e.g. from GitHub integrations)
+  // but weren't in the default dummy team array.
+  Object.keys(memberWork).forEach(assigneeKey => {
+    // Check if they exist by ID or Name
+    const exists = members.some((m: any) => m.id === assigneeKey || m.name === assigneeKey || m.name.toLowerCase() === assigneeKey.toLowerCase());
+    if (!exists) {
+      members.push({
+        id: assigneeKey,
+        name: assigneeKey,
+        role: "Engineer",
+        capacity_hours: 40, // Default generic capacity
+        avatar: assigneeKey.substring(0, 2).toUpperCase()
+      });
+    }
+  });
+
+  const capacityChart = members.map((m: any, i: number) => {
+    // Map to the assignee key. Seed data maps to `id`, integrations usually map to `name` or raw `assigneeKey`.
+    const work = memberWork[m.id] ?? memberWork[m.name] ?? [];
+    return {
+      name: m.name.split(" ")[0],
+      capacity: m.capacity_hours,
+      allocated: work.reduce((s: number, w: any) => s + w.pts * 4, 0),
+      color: COLORS[i % COLORS.length],
+    };
+  });
 
   return (
     <div className="page-enter">
@@ -40,8 +76,8 @@ export default function TeamPage() {
       {/* Member cards */}
       <div style={styles.memberGrid}>
         {members.map((m: any, i: number) => {
-          const color = COLORS[i];
-          const work  = MEMBER_WORK[m.id] ?? [];
+          const color = COLORS[i % COLORS.length];
+          const work  = memberWork[m.id] ?? memberWork[m.name] ?? [];
           const allocHrs = work.reduce((s: number, w: any) => s + w.pts * 4, 0);
           const pct = Math.round((allocHrs / m.capacity_hours) * 100);
           return (

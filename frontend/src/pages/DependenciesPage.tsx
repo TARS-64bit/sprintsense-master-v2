@@ -99,7 +99,7 @@ export default function DependenciesPage() {
       .style("border-radius", "6px")
       .style("font-size", "12px")
       .style("box-shadow", "0 4px 6px rgba(0,0,0,0.1)")
-      .style("z-index", "1000")
+      .style("z-index", "99999") // Fixed: Render above 9999 portal
       .style("max-width", "250px");
 
     // 3. Link lines (now using path instead of line to allow geometric drawing via "d" attribute)
