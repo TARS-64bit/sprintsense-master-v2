@@ -285,10 +285,10 @@ export default function DependenciesPage() {
         </div>
 
         {isLoading && (
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "var(--text-muted)", gap: 16 }}>
+          <div className="shimmer-skeleton" style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "var(--text-muted)", gap: 16 }}>
              <div className="pulse" style={{ width: 40, height: 40, border: "3px solid var(--accent)", borderRadius: "50%", borderTopColor: "transparent", animation: "spin 1s linear infinite" }} />
-             <div style={{ fontSize: 14, fontWeight: 600, color: "var(--fg)" }}>AI is analyzing tickets...</div>
-             <div style={{ fontSize: 13 }}>Inferring implicit dependencies and calculating story points.</div>
+             <div style={{ fontSize: 14, fontWeight: 600, color: "var(--fg)", textShadow: "0 1px 2px rgba(0,0,0,0.5)" }}>AI is analyzing tickets...</div>
+             <div style={{ fontSize: 13, textShadow: "0 1px 2px rgba(0,0,0,0.5)" }}>Inferring implicit dependencies and calculating story points.</div>
           </div>
         )}
 
