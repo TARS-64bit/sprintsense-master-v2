@@ -140,6 +140,51 @@ async def call_llm(
 
 
 # ---------------------------------------------------------------------------
+# Similarity Search (Jaccard)
+# ---------------------------------------------------------------------------
+
+def _tokenize(text: str) -> set:
+    if not text:
+        return set()
+    import re
+    words = re.findall(r'\b\w+\b', text.lower())
+    # simplistic stop words
+    stop = {"the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "with", "is", "are", "this"}
+    return {w for w in words if w not in stop}
+
+def find_similar_tickets(target: dict, historical: list[dict], top_k: int = 3) -> list[str]:
+    """
+    Computes Jaccard similarity based on title, description, and labels between
+    the target ticket and all historical tickets.
+    Returns a list of up to `top_k` historical ticket IDs that are most similar.
+    """
+    target_text = f"{target.get('title', '')} {target.get('description', '')} {' '.join(target.get('labels', []))}"
+    target_tokens = _tokenize(target_text)
+
+    if not target_tokens:
+        return []
+
+    scores = []
+    for h in historical:
+        h_text = f"{h.get('title', '')} {h.get('description', '')} {' '.join(h.get('labels', []))}"
+        h_tokens = _tokenize(h_text)
+
+        if not h_tokens:
+            continue
+
+        intersection = target_tokens.intersection(h_tokens)
+        union = target_tokens.union(h_tokens)
+        score = len(intersection) / len(union) if len(union) > 0 else 0
+        scores.append((score, h["id"]))
+
+    # Sort descending by score
+    scores.sort(key=lambda x: x[0], reverse=True)
+
+    # Return top_k ids that have score > 0
+    return [s[1] for s in scores[:top_k] if s[0] > 0]
+
+
+# ---------------------------------------------------------------------------
 # High-level: ticket estimation
 # ---------------------------------------------------------------------------
 

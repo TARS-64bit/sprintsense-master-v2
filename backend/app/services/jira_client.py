@@ -118,6 +118,11 @@ async def fetch_issues(
         logger.warning("JIRA_PROJECT_KEY not set")
         return []
 
+    # To also fetch recently closed issues for history and better team guessing,
+    # we'll broaden the JQL or simply pull everything recent if max_results allows.
+    # The backlog endpoint should filter out Done ones, but the user expects history.
+    # For now, let's keep the existing behaviour for active tickets here, but we
+    # will add a fetch_historical_issues function.
     jql = f"project={key} AND status != Done ORDER BY created DESC"
     url = f"{base_url}/rest/api/3/search"
 
@@ -177,6 +182,64 @@ async def fetch_issues(
         logger.exception(f"Error fetching Jira issues: {e}")
         return []
 
+async def fetch_historical_issues(
+    project_key: Optional[str] = None,
+    max_results: int = 50,
+    url_override: Optional[str] = None,
+    email_override: Optional[str] = None,
+    token_override: Optional[str] = None,
+) -> list:
+    base_url = url_override or _get("JIRA_URL")
+    if not base_url: return []
+
+    key = project_key or _get("JIRA_PROJECT_KEY")
+    if not key: return []
+
+    jql = f"project={key} AND status = Done ORDER BY updated DESC"
+    url = f"{base_url}/rest/api/3/search"
+
+    headers = {
+        "Authorization": _auth_header(email_override, token_override),
+        "Accept": "application/json"
+    }
+
+    params = {
+        "jql": jql,
+        "maxResults": max_results,
+        "fields": "summary,description,labels,status,assignee,priority,story_points"
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(url, headers=headers, params=params)
+            resp.raise_for_status()
+            data = resp.json()
+
+            issues = []
+            for issue in data.get("issues", []):
+                fields = issue.get("fields", {})
+
+                assignee = None
+                if fields.get("assignee"):
+                    assignee = fields["assignee"].get("displayName")
+
+                status_name = ""
+                if fields.get("status"):
+                    status_name = fields["status"].get("name", "")
+
+                issues.append({
+                    "id": f"JIRA-{issue['key']}",
+                    "title": fields.get("summary", ""),
+                    "labels": fields.get("labels", []),
+                    "status": _map_status(status_name),
+                    "assignee": assignee,
+                })
+
+            return issues
+    except Exception as e:
+        logger.exception(f"Error fetching historical Jira issues: {e}")
+        return []
+
 
 # ---------------------------------------------------------------------------
 # TODO 2 — fetch_sprint_history()
@@ -210,7 +273,7 @@ async def fetch_sprint_history(
     b_id = board_id or _get("JIRA_BOARD_ID")
 
     if not base_url or not b_id:
-        return []
+        return None
 
     url = f"{base_url}/rest/agile/1.0/board/{b_id}/sprint"
     headers = {
@@ -271,4 +334,78 @@ async def fetch_sprint_history(
             return history
     except Exception as e:
         logger.exception(f"Error fetching Jira sprint history: {e}")
-        return []
+        return None
+
+async def create_and_start_sprint(
+    name: str,
+    goal: str,
+    start_date: str,
+    end_date: str,
+    ticket_ids: list,
+    board_id: Optional[str] = None,
+    url_override: Optional[str] = None,
+    email_override: Optional[str] = None,
+    token_override: Optional[str] = None,
+) -> dict:
+    """
+    Creates a sprint on a Jira Agile board, moves the specified tickets into it,
+    and starts the sprint.
+    """
+    base_url = url_override or _get("JIRA_URL")
+    b_id = board_id or _get("JIRA_BOARD_ID")
+
+    if not base_url or not b_id:
+        raise ValueError("JIRA_URL or JIRA_BOARD_ID is missing")
+
+    headers = {
+        "Authorization": _auth_header(email_override, token_override),
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            # 1. Create Sprint
+            create_url = f"{base_url}/rest/agile/1.0/sprint"
+            create_payload = {
+                "name": name,
+                "goal": goal,
+                "startDate": f"{start_date}T00:00:00.000+00:00",
+                "endDate": f"{end_date}T00:00:00.000+00:00",
+                "originBoardId": int(b_id)
+            }
+            resp = await client.post(create_url, headers=headers, json=create_payload)
+            resp.raise_for_status()
+            sprint_data = resp.json()
+            sprint_id = sprint_data.get("id")
+
+            if not sprint_id:
+                raise Exception("Failed to get sprint ID from create response")
+
+            # 2. Move Issues to Sprint
+            if ticket_ids:
+                # Jira API needs the original issue key (e.g. PROJ-123 instead of JIRA-PROJ-123)
+                jira_keys = [t.replace("JIRA-", "") if t.startswith("JIRA-") else t for t in ticket_ids]
+                move_url = f"{base_url}/rest/agile/1.0/sprint/{sprint_id}/issue"
+                move_payload = {"issues": jira_keys}
+                move_resp = await client.post(move_url, headers=headers, json=move_payload)
+                move_resp.raise_for_status()
+
+            # 3. Start Sprint
+            start_url = f"{base_url}/rest/agile/1.0/sprint/{sprint_id}"
+            start_payload = {
+                "state": "active",
+                "startDate": f"{start_date}T00:00:00.000+00:00",
+                "endDate": f"{end_date}T00:00:00.000+00:00"
+            }
+            start_resp = await client.put(start_url, headers=headers, json=start_payload)
+            start_resp.raise_for_status()
+
+            return {
+                "success": True,
+                "sprint_id": sprint_id,
+                "sprint_url": f"{base_url}/secure/RapidBoard.jspa?rapidView={b_id}&sprint={sprint_id}"
+            }
+    except Exception as e:
+        logger.exception(f"Error creating/starting Jira sprint: {e}")
+        return {"success": False, "error": str(e)}

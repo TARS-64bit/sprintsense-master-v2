@@ -4,7 +4,7 @@ from app.data.seed_data import (
     BACKLOG_TICKETS, HISTORICAL_TICKETS, LLM_ESTIMATES,
     SIMILARITY_MATCHES, DEPENDENCY_EDGES, AT_RISK_ITEMS
 )
-from app.services.llm import estimate_ticket
+from app.services.llm import estimate_ticket, find_similar_tickets
 from app.services.dependency_detector import detect_implicit_dependencies
 from app.services import github_client
 
@@ -80,19 +80,30 @@ async def get_backlog(
         x_jira_url, x_jira_email, x_jira_api_token, x_jira_project_key
     )
 
+    historical_tickets = await get_historical_tickets(
+        x_github_token, x_github_owner, x_github_repo,
+        x_jira_url, x_jira_email, x_jira_api_token, x_jira_project_key
+    )
+
     result = []
     for t in tickets:
         tid = t["id"]
 
+        # If it's a seed dataset ticket, fallback to seed matches if desired.
+        # Otherwise dynamically compute similarity.
+        is_seed = any(seed_t["id"] == tid for seed_t in BACKLOG_TICKETS)
+        if is_seed:
+            similar_ids = SIMILARITY_MATCHES.get(tid, [])
+        else:
+            similar_ids = find_similar_tickets(t, historical_tickets)
+
+        hist = [h for h in historical_tickets if h["id"] in similar_ids]
+
         # Used cached estimate if available to save time
         if tid in _llm_cache_estimates:
             est = _llm_cache_estimates[tid]
-            similar_ids = SIMILARITY_MATCHES.get(tid, [])
-            hist = [h for h in HISTORICAL_TICKETS if h["id"] in similar_ids]
         else:
             mock_est = LLM_ESTIMATES.get(tid, {})
-            similar_ids = SIMILARITY_MATCHES.get(tid, [])
-            hist = [h for h in HISTORICAL_TICKETS if h["id"] in similar_ids]
             est = await estimate_ticket(t, hist, api_key=x_llm_key, mock_estimate=mock_est)
             if est.get("source") == "llm":
                 _llm_cache_estimates[tid] = est
@@ -101,9 +112,64 @@ async def get_backlog(
     return {"tickets": result, "total": len(result)}
 
 
+async def get_historical_tickets(
+    x_github_token: Optional[str] = None,
+    x_github_owner: Optional[str] = None,
+    x_github_repo: Optional[str] = None,
+    x_jira_url: Optional[str] = None,
+    x_jira_email: Optional[str] = None,
+    x_jira_api_token: Optional[str] = None,
+    x_jira_project_key: Optional[str] = None
+):
+    # Try Jira
+    if x_jira_url and x_jira_email and x_jira_api_token and x_jira_project_key:
+        try:
+            issues = await jira_client.fetch_historical_issues(
+                project_key=x_jira_project_key,
+                url_override=x_jira_url,
+                email_override=x_jira_email,
+                token_override=x_jira_api_token
+            )
+            if issues: return issues
+        except Exception:
+            pass
+
+    # Try GitHub
+    try:
+        if x_github_token and x_github_owner and x_github_repo:
+            issues = await github_client.fetch_historical_issues(
+                owner=x_github_owner, repo=x_github_repo, token_override=x_github_token
+            )
+            if issues: return issues
+    except Exception:
+        pass
+
+    # Fallback to config
+    if github_client.is_configured():
+        try:
+            issues = await github_client.fetch_historical_issues()
+            if issues: return issues
+        except Exception:
+            pass
+
+    return HISTORICAL_TICKETS
+
+
 @router.get("/history")
-def get_history():
-    return {"tickets": HISTORICAL_TICKETS, "total": len(HISTORICAL_TICKETS)}
+async def get_history(
+    x_github_token: Optional[str] = Header(default=None),
+    x_github_owner: Optional[str] = Header(default=None),
+    x_github_repo: Optional[str] = Header(default=None),
+    x_jira_url: Optional[str] = Header(default=None),
+    x_jira_email: Optional[str] = Header(default=None),
+    x_jira_api_token: Optional[str] = Header(default=None),
+    x_jira_project_key: Optional[str] = Header(default=None)
+):
+    tickets = await get_historical_tickets(
+        x_github_token, x_github_owner, x_github_repo,
+        x_jira_url, x_jira_email, x_jira_api_token, x_jira_project_key
+    )
+    return {"tickets": tickets, "total": len(tickets)}
 
 
 @router.get("/dependencies")
@@ -182,9 +248,20 @@ async def get_ticket(
     if not ticket:
         raise HTTPException(status_code=404, detail=f"ticket {ticket_id} not found")
 
+    historical_tickets = await get_historical_tickets(
+        x_github_token, x_github_owner, x_github_repo,
+        x_jira_url, x_jira_email, x_jira_api_token, x_jira_project_key
+    )
+
+    is_seed = any(seed_t["id"] == tid for seed_t in BACKLOG_TICKETS)
+    if is_seed:
+        similar_ids = SIMILARITY_MATCHES.get(tid, [])
+    else:
+        similar_ids = find_similar_tickets(ticket, historical_tickets)
+
+    similar = [h for h in historical_tickets if h["id"] in similar_ids]
+
     mock_est = LLM_ESTIMATES.get(tid, {})
-    similar_ids = SIMILARITY_MATCHES.get(tid, [])
-    similar = [h for h in HISTORICAL_TICKETS if h["id"] in similar_ids]
     est = await estimate_ticket(ticket, similar, api_key=x_llm_key, mock_estimate=mock_est)
     deps_out = [e for e in DEPENDENCY_EDGES if e["from"] == tid]
     deps_in  = [e for e in DEPENDENCY_EDGES if e["to"]   == tid]
