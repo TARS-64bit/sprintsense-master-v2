@@ -102,7 +102,7 @@ async def fetch_sprint_history(
     token = token_override or _get("GITHUB_TOKEN")
 
     if not (gh_owner and gh_repo and token):
-        return []
+        return None
 
     # Fetch closed milestones
     url = f"{GITHUB_API_URL}/repos/{gh_owner}/{gh_repo}/milestones"
@@ -133,7 +133,7 @@ async def fetch_sprint_history(
             return history
     except Exception as e:
         logger.exception(f"Error fetching GitHub milestone history: {e}")
-        return []
+        return None
 
 
 async def fetch_collaborators(
@@ -162,7 +162,7 @@ async def fetch_collaborators(
                     "id": user.get("login"),
                     "name": user.get("login"),
                     "role": "Engineer",
-                    "capacity_hours": 40,
+                    "capacity_hours": 400, # Set high capacity
                     "avatar": user.get("login")[:2].upper() if user.get("login") else "??"
                 })
             return members

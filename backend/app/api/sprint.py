@@ -184,7 +184,7 @@ async def get_sprint_history(
                 email_override=x_jira_email,
                 token_override=x_jira_api_token
             )
-            if history:
+            if history is not None:
                 return {"sprints": history}
         except Exception:
             pass
@@ -197,7 +197,7 @@ async def get_sprint_history(
                 repo=x_github_repo,
                 token_override=x_github_token
             )
-            if history:
+            if history is not None:
                 return {"sprints": history}
     except Exception:
         pass
@@ -205,11 +205,11 @@ async def get_sprint_history(
     # Fallback configured environments
     if github_client.is_configured():
         history = await github_client.fetch_sprint_history()
-        if history: return {"sprints": history}
+        if history is not None: return {"sprints": history}
 
     if jira_client.is_configured():
         history = await jira_client.fetch_sprint_history()
-        if history: return {"sprints": history}
+        if history is not None: return {"sprints": history}
 
     return {"sprints": SPRINT_HISTORY}
 

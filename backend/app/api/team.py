@@ -43,7 +43,7 @@ async def get_team(
                 "id": str(assignee),
                 "name": str(assignee),
                 "role": "Engineer",
-                "capacity_hours": 80,
+                "capacity_hours": 400, # Set a high capacity by default when guessing team to avoid deferring all items
                 "avatar": str(assignee)[:2].upper()
             }
 
@@ -52,7 +52,7 @@ async def get_team(
             "id": "Engineer",
             "name": "Engineer",
             "role": "Engineer",
-            "capacity_hours": 80,
+            "capacity_hours": 400,
             "avatar": "EN"
         }
 

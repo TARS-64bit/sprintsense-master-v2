@@ -210,7 +210,7 @@ async def fetch_sprint_history(
     b_id = board_id or _get("JIRA_BOARD_ID")
 
     if not base_url or not b_id:
-        return []
+        return None
 
     url = f"{base_url}/rest/agile/1.0/board/{b_id}/sprint"
     headers = {
@@ -271,7 +271,7 @@ async def fetch_sprint_history(
             return history
     except Exception as e:
         logger.exception(f"Error fetching Jira sprint history: {e}")
-        return []
+        return None
 
 async def create_and_start_sprint(
     name: str,
