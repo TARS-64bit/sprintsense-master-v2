@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Header
 from typing import Optional
 from app.data.seed_data import TEAM_MEMBERS, BACKLOG_TICKETS
-from app.api.backlog import get_active_tickets
+from app.api.backlog import get_active_tickets, get_historical_tickets
 
 router = APIRouter()
 
@@ -34,9 +34,14 @@ async def get_team(
 
     # Fallback: if we are in integration mode but have no collaborators fetched
     # (e.g. read-only token lacking permissions to hit /collaborators API),
-    # dynamically infer the minimal team directly from assignees.
+    # dynamically infer the minimal team directly from assignees on active AND historical tickets.
+    historical_tickets = await get_historical_tickets(
+        x_github_token, x_github_owner, x_github_repo,
+        x_jira_url, x_jira_email, x_jira_api_token, x_jira_project_key
+    )
+
     dynamic_members = {}
-    for t in tickets:
+    for t in tickets + historical_tickets:
         assignee = t.get("assignee")
         if assignee and assignee not in dynamic_members:
             dynamic_members[assignee] = {

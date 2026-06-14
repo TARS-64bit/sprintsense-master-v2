@@ -1,17 +1,9 @@
 INFO:     Shutting down
 INFO:     Waiting for application shutdown.
 INFO:     Application shutdown complete.
-INFO:     Finished server process [326290]
-INFO:     Started server process [423295]
+INFO:     Finished server process [423295]
+INFO:     Started server process [560770]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
 INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
-INFO:     127.0.0.1:55290 - "GET /api/sprint/current HTTP/1.1" 200 OK
-INFO:     127.0.0.1:35584 - "OPTIONS /api/sprint/current HTTP/1.1" 200 OK
-INFO:     127.0.0.1:35600 - "OPTIONS /api/sprint/history HTTP/1.1" 200 OK
-INFO:     127.0.0.1:35610 - "OPTIONS /api/sprint/current HTTP/1.1" 200 OK
-INFO:     127.0.0.1:35622 - "OPTIONS /api/sprint/history HTTP/1.1" 200 OK
-INFO:     127.0.0.1:35630 - "GET /api/sprint/current HTTP/1.1" 200 OK
-INFO:     127.0.0.1:35584 - "GET /api/sprint/history HTTP/1.1" 200 OK
-INFO:     127.0.0.1:35622 - "GET /api/sprint/current HTTP/1.1" 200 OK
-INFO:     127.0.0.1:35630 - "GET /api/sprint/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55144 - "GET /api/backlog/ HTTP/1.1" 200 OK

@@ -92,6 +92,50 @@ async def fetch_issues(
         logger.exception(f"Error fetching GitHub issues: {e}")
         return []
 
+async def fetch_historical_issues(
+    owner: Optional[str] = None,
+    repo: Optional[str] = None,
+    token_override: Optional[str] = None,
+    max_results: int = 50,
+) -> list:
+    gh_owner = owner or _get("GITHUB_OWNER")
+    gh_repo = repo or _get("GITHUB_REPO")
+    token = token_override or _get("GITHUB_TOKEN")
+
+    if not (gh_owner and gh_repo and token):
+        return []
+
+    url = f"{GITHUB_API_URL}/repos/{gh_owner}/{gh_repo}/issues"
+    params = {"state": "closed", "per_page": max_results}
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(url, headers=_auth_header(token), params=params)
+            resp.raise_for_status()
+            data = resp.json()
+
+            issues = []
+            for issue in data:
+                if issue.get("pull_request") is not None:
+                    continue
+
+                assignee = None
+                if issue.get("assignee"):
+                    assignee = issue["assignee"].get("login")
+
+                issues.append({
+                    "id": f"GH-{issue['number']}",
+                    "title": issue.get("title", ""),
+                    "labels": [l.get("name", "") for l in issue.get("labels", []) if isinstance(l, dict)],
+                    "status": "done",
+                    "assignee": assignee,
+                })
+
+            return issues
+    except Exception as e:
+        logger.exception(f"Error fetching historical GitHub issues: {e}")
+        return []
+
 async def fetch_sprint_history(
     owner: Optional[str] = None,
     repo: Optional[str] = None,

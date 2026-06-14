@@ -118,6 +118,11 @@ async def fetch_issues(
         logger.warning("JIRA_PROJECT_KEY not set")
         return []
 
+    # To also fetch recently closed issues for history and better team guessing,
+    # we'll broaden the JQL or simply pull everything recent if max_results allows.
+    # The backlog endpoint should filter out Done ones, but the user expects history.
+    # For now, let's keep the existing behaviour for active tickets here, but we
+    # will add a fetch_historical_issues function.
     jql = f"project={key} AND status != Done ORDER BY created DESC"
     url = f"{base_url}/rest/api/3/search"
 
@@ -175,6 +180,64 @@ async def fetch_issues(
             return issues
     except Exception as e:
         logger.exception(f"Error fetching Jira issues: {e}")
+        return []
+
+async def fetch_historical_issues(
+    project_key: Optional[str] = None,
+    max_results: int = 50,
+    url_override: Optional[str] = None,
+    email_override: Optional[str] = None,
+    token_override: Optional[str] = None,
+) -> list:
+    base_url = url_override or _get("JIRA_URL")
+    if not base_url: return []
+
+    key = project_key or _get("JIRA_PROJECT_KEY")
+    if not key: return []
+
+    jql = f"project={key} AND status = Done ORDER BY updated DESC"
+    url = f"{base_url}/rest/api/3/search"
+
+    headers = {
+        "Authorization": _auth_header(email_override, token_override),
+        "Accept": "application/json"
+    }
+
+    params = {
+        "jql": jql,
+        "maxResults": max_results,
+        "fields": "summary,description,labels,status,assignee,priority,story_points"
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(url, headers=headers, params=params)
+            resp.raise_for_status()
+            data = resp.json()
+
+            issues = []
+            for issue in data.get("issues", []):
+                fields = issue.get("fields", {})
+
+                assignee = None
+                if fields.get("assignee"):
+                    assignee = fields["assignee"].get("displayName")
+
+                status_name = ""
+                if fields.get("status"):
+                    status_name = fields["status"].get("name", "")
+
+                issues.append({
+                    "id": f"JIRA-{issue['key']}",
+                    "title": fields.get("summary", ""),
+                    "labels": fields.get("labels", []),
+                    "status": _map_status(status_name),
+                    "assignee": assignee,
+                })
+
+            return issues
+    except Exception as e:
+        logger.exception(f"Error fetching historical Jira issues: {e}")
         return []
 
 
