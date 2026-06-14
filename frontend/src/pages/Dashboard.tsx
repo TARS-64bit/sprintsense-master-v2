@@ -17,7 +17,10 @@ export default function Dashboard() {
   const { data: burndown }  = useApi(() => api.getBurndown());
   const { data: velocity }  = useApi(() => api.getVelocity());
   const { data: digest }    = useApi(() => api.getDigest());
+  const { data: teamData }  = useApi(() => api.getTeam());
   const navigate = useNavigate();
+
+  const totalCapacity = teamData?.members?.reduce((sum: number, m: any) => sum + (m.capacity_hours || 0), 0) ?? 0;
 
   const currentProb = slippage?.current_probability ?? 0.63;
   const probPct = Math.round(currentProb * 100);
@@ -82,10 +85,10 @@ export default function Dashboard() {
           label="At Risk" value={`${slippage?.at_risk?.length ?? 3}`}
           sub="tickets" color="var(--amber)" />
         <KpiCard icon={<Zap size={16} color="var(--purple)" />}
-          label="Avg Velocity" value={`${velocity?.average ?? 35.8}`}
+          label="Avg Velocity" value={`${velocity?.average ?? 0}`}
           sub="pts / sprint" color="var(--purple)" />
         <KpiCard icon={<Users size={16} color="var(--cyan)" />}
-          label="Team Capacity" value="272 hrs"
+          label="Team Capacity" value={`${totalCapacity} hrs`}
           sub="this sprint" color="var(--cyan)" />
       </div>
 
@@ -143,7 +146,7 @@ export default function Dashboard() {
         <div className="card" style={{ flex: 1.2 }}>
           <div style={styles.cardHeader}>
             <span style={styles.cardTitle}>Velocity History</span>
-            <span className="badge badge-blue">8 sprints</span>
+            <span className="badge badge-blue">{velocityChart.length} sprints</span>
           </div>
           <ResponsiveContainer width="100%" height={200}>
             <AreaChart data={velocityChart} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
