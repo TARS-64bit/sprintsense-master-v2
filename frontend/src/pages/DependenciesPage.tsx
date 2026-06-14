@@ -11,6 +11,8 @@ const STATUS_COLOR: Record<string, string> = {
   done:        "#22d58a",
   todo:        "#4a5468",
   backlog:     "#4a5468",
+  open:        "#22d58a", // Green for GitHub open
+  closed:      "#a78bfa", // Purple for GitHub closed
 };
 
 // Helper to color nodes based on complexity (story points)
@@ -45,10 +47,15 @@ export default function DependenciesPage() {
     const statusMap: Record<string, string> = {};
     if (boardState) {
       ["todo","in_progress","review","done"].forEach((col: string) => {
-        (boardState[col] ?? []).forEach((t: any) => { statusMap[t.id] = col; });
+        (boardState[col] ?? []).forEach((id: string) => { statusMap[id] = col; });
       });
     }
-    tickets.forEach((t: any) => { if (!statusMap[t.id]) statusMap[t.id] = "backlog"; });
+    tickets.forEach((t: any) => {
+      // If the ticket already has a native status (like open/closed from GitHub), keep it.
+      if (!statusMap[t.id]) {
+        statusMap[t.id] = t.status || "backlog";
+      }
+    });
 
     /* Build node and link arrays for D3 */
     const nodes = tickets.map((t: any) => ({
@@ -56,7 +63,7 @@ export default function DependenciesPage() {
       label: t.id,
       title: t.title ?? t.id,
       pts: t.estimate?.points ?? 5,
-      status: statusMap[t.id] ?? "backlog"
+      status: statusMap[t.id]
     }));
 
     // Only map edges where both source and target actually exist in our nodes array
@@ -237,17 +244,29 @@ export default function DependenciesPage() {
           </p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          {[
-            { color: "#3d7eff", label: "In Progress" },
-            { color: "#a78bfa", label: "Review" },
-            { color: "#22d58a", label: "Done" },
-            { color: "#4a5468", label: "Not started" },
-          ].map(l => (
-            <div key={l.label} style={styles.legendItem}>
-              <div style={{ width:10, height:10, borderRadius:"50%", background:l.color }} />
-              <span style={{ fontSize:12, color:"var(--text-secondary)" }}>{l.label}</span>
-            </div>
-          ))}
+          {hasTickets && backlog.tickets[0].id.startsWith("GH-") ? (
+            [
+              { color: "#22d58a", label: "Open" },
+              { color: "#a78bfa", label: "Closed" },
+            ].map(l => (
+              <div key={l.label} style={styles.legendItem}>
+                <div style={{ width:10, height:10, borderRadius:"50%", background:l.color }} />
+                <span style={{ fontSize:12, color:"var(--text-secondary)" }}>{l.label}</span>
+              </div>
+            ))
+          ) : (
+            [
+              { color: "#3d7eff", label: "In Progress" },
+              { color: "#a78bfa", label: "Review" },
+              { color: "#22d58a", label: "Done" },
+              { color: "#4a5468", label: "Not started" },
+            ].map(l => (
+              <div key={l.label} style={styles.legendItem}>
+                <div style={{ width:10, height:10, borderRadius:"50%", background:l.color }} />
+                <span style={{ fontSize:12, color:"var(--text-secondary)" }}>{l.label}</span>
+              </div>
+            ))
+          )}
         </div>
       </div>
 

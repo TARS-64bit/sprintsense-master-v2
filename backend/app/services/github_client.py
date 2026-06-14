@@ -60,7 +60,7 @@ async def fetch_issues(
         return []
 
     url = f"{GITHUB_API_URL}/repos/{gh_owner}/{gh_repo}/issues"
-    params = {"state": "open", "per_page": max_results}
+    params = {"state": "all", "per_page": max_results}
 
     try:
         async with httpx.AsyncClient(timeout=10) as client:
@@ -83,7 +83,7 @@ async def fetch_issues(
                     "title": issue.get("title", ""),
                     "description": issue.get("body") or "",
                     "labels": [l.get("name", "") for l in issue.get("labels", []) if isinstance(l, dict)],
-                    "status": "todo",
+                    "status": issue.get("state", "open"),
                     "assignee": assignee,
                 })
 
