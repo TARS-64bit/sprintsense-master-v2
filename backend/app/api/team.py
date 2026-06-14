@@ -43,8 +43,17 @@ async def get_team(
                 "id": str(assignee),
                 "name": str(assignee),
                 "role": "Engineer",
-                "capacity_hours": 40,
+                "capacity_hours": 80,
                 "avatar": str(assignee)[:2].upper()
             }
+
+    if not dynamic_members:
+        dynamic_members["Engineer"] = {
+            "id": "Engineer",
+            "name": "Engineer",
+            "role": "Engineer",
+            "capacity_hours": 80,
+            "avatar": "EN"
+        }
 
     return {"members": list(dynamic_members.values())}

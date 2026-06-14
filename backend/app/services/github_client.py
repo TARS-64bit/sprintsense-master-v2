@@ -60,7 +60,7 @@ async def fetch_issues(
         return []
 
     url = f"{GITHUB_API_URL}/repos/{gh_owner}/{gh_repo}/issues"
-    params = {"state": "all", "per_page": max_results}
+    params = {"state": "open", "per_page": max_results}
 
     try:
         async with httpx.AsyncClient(timeout=10) as client:
@@ -91,6 +91,50 @@ async def fetch_issues(
     except Exception as e:
         logger.exception(f"Error fetching GitHub issues: {e}")
         return []
+
+async def fetch_sprint_history(
+    owner: Optional[str] = None,
+    repo: Optional[str] = None,
+    token_override: Optional[str] = None,
+) -> list:
+    gh_owner = owner or _get("GITHUB_OWNER")
+    gh_repo = repo or _get("GITHUB_REPO")
+    token = token_override or _get("GITHUB_TOKEN")
+
+    if not (gh_owner and gh_repo and token):
+        return []
+
+    # Fetch closed milestones
+    url = f"{GITHUB_API_URL}/repos/{gh_owner}/{gh_repo}/milestones"
+    params = {"state": "closed", "sort": "due_on", "direction": "desc"}
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(url, headers=_auth_header(token), params=params)
+            resp.raise_for_status()
+            data = resp.json()
+
+            history = []
+            # We don't easily have 'points' or velocity from milestones without fetching all issues for each,
+            # so we'll approximate based on open_issues vs closed_issues count.
+            for i, ms in enumerate(reversed(data)): # reverse to get oldest first
+                closed = ms.get("closed_issues", 0)
+                open_iss = ms.get("open_issues", 0)
+                total = closed + open_iss
+
+                history.append({
+                    "sprint": i + 1,
+                    "start": ms.get("created_at", "")[:10],
+                    "end": ms.get("due_on", "")[:10] if ms.get("due_on") else ms.get("closed_at", "")[:10],
+                    "committed": total, # Using issue count as approximation
+                    "completed": closed,
+                    "velocity": closed  # Using closed issue count as velocity approximation
+                })
+            return history
+    except Exception as e:
+        logger.exception(f"Error fetching GitHub milestone history: {e}")
+        return []
+
 
 async def fetch_collaborators(
     owner: Optional[str] = None,

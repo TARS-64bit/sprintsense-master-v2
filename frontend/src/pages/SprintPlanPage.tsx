@@ -1,23 +1,18 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useApi } from "../hooks/useApi";
 import { api } from "../utils/api";
 import { Calendar, User, Info, BarChart2, Play } from "lucide-react";
 
-const MEMBER_COLORS: Record<string, string> = {
-  "USR-1": "#3d7eff",
-  "USR-2": "#22d58a",
-  "USR-3": "#a78bfa",
-  "USR-4": "#f5a623",
-  "USR-5": "#22d3ee",
-};
+const COLORS = [
+  "#3d7eff", "#22d58a", "#a78bfa", "#f5a623", "#22d3ee", "#ff6b6b", "#4ecdc4", "#ffe66d"
+];
 
-const MEMBER_NAMES: Record<string, string> = {
-  "USR-1": "Priya S.",
-  "USR-2": "James O.",
-  "USR-3": "Meera N.",
-  "USR-4": "Carlos R.",
-  "USR-5": "Aisha O.",
-};
+function getMemberColor(name: string): string {
+  if (!name) return "var(--accent)";
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return COLORS[Math.abs(hash) % COLORS.length];
+}
 
 const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
   todo:        { label: "To Do",       cls: "badge-gray" },
@@ -27,8 +22,25 @@ const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
 };
 
 export default function SprintPlanPage() {
-  const { data: sprint, loading } = useApi(() => api.getCurrentSprint());
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [customDates, setCustomDates] = useState(false);
+
+  const { data: sprint, loading, refetch } = useApi(() =>
+    customDates && startDate && endDate
+      ? api.getCurrentSprint(startDate, endDate)
+      : api.getCurrentSprint()
+  );
+
   const { data: history }        = useApi(() => api.getSprintHistory());
+
+  // Set initial dates from server prediction once loaded
+  useEffect(() => {
+    if (sprint && !customDates) {
+      setStartDate(sprint.start_date || "");
+      setEndDate(sprint.end_date || "");
+    }
+  }, [sprint, customDates]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [sprintName, setSprintName] = useState("");
@@ -52,9 +64,35 @@ export default function SprintPlanPage() {
       <div style={styles.header}>
         <div>
           <h1 style={styles.title}>Sprint {sprint?.sprint_number} Plan</h1>
-          <p style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)", fontSize: 12 }}>
-            {sprint?.start_date} → {sprint?.end_date}
-          </p>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+            <input
+              type="date"
+              style={styles.dateInput}
+              value={startDate}
+              onChange={(e) => {
+                setStartDate(e.target.value);
+                setCustomDates(true);
+              }}
+            />
+            <span style={{ color: "var(--text-muted)", fontSize: 12 }}>→</span>
+            <input
+              type="date"
+              style={styles.dateInput}
+              value={endDate}
+              onChange={(e) => {
+                setEndDate(e.target.value);
+                setCustomDates(true);
+              }}
+            />
+            {customDates && (
+              <button
+                onClick={() => refetch()}
+                style={{ ...styles.button, padding: "4px 8px", fontSize: 11, background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
+              >
+                Apply Dates
+              </button>
+            )}
+          </div>
         </div>
         <div style={{ display: "flex", gap: 12 }}>
           <button
@@ -101,7 +139,7 @@ export default function SprintPlanPage() {
           </div>
           {/* Rows */}
           {tickets.map((t: any) => {
-            const color = MEMBER_COLORS[t.assignee] ?? "var(--accent)";
+            const color = getMemberColor(t.assignee);
             const start = t.sprint_day_start - 1;
             const len   = t.estimated_days;
             return (
@@ -110,8 +148,8 @@ export default function SprintPlanPage() {
                   <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                     <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                       <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--accent)" }}>{t.id}</span>
-                      <span style={{ ...styles.memberDot, background: color }} title={MEMBER_NAMES[t.assignee]} />
-                      <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{MEMBER_NAMES[t.assignee]}</span>
+                      <span style={{ ...styles.memberDot, background: color }} title={t.assignee} />
+                      <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{t.assignee}</span>
                     </div>
                     <span style={{ fontSize: 13, fontWeight: 500, color: "var(--text-primary)" }}>{t.title}</span>
                   </div>
@@ -148,9 +186,9 @@ export default function SprintPlanPage() {
 
       {/* Legend */}
       <div style={styles.legendRow}>
-        {Object.entries(MEMBER_NAMES).map(([id, name]) => (
-          <div key={id} style={styles.legendItem}>
-            <div style={{ ...styles.memberDot, background: MEMBER_COLORS[id] }} />
+        {Array.from(new Set(tickets.map((t: any) => t.assignee).filter(Boolean))).map((name: any) => (
+          <div key={name} style={styles.legendItem}>
+            <div style={{ ...styles.memberDot, background: getMemberColor(name) }} />
             <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>{name}</span>
           </div>
         ))}
@@ -362,5 +400,10 @@ const styles: Record<string, React.CSSProperties> = {
   },
   button: {
     padding: "8px 16px", borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: "pointer",
+  },
+  dateInput: {
+    padding: "4px 8px", borderRadius: 4, border: "1px solid var(--border)",
+    background: "var(--bg-body)", color: "var(--text-primary)", fontSize: 12,
+    fontFamily: "var(--font-mono)"
   }
 };

@@ -63,7 +63,13 @@ export const api = {
   getTicket:        (id: string) => get<any>(`/api/backlog/${id}`),
 
   // Sprint
-  getCurrentSprint: () => get<any>("/api/sprint/current"),
+  getCurrentSprint: (startDate?: string, endDate?: string) => {
+    let url = "/api/sprint/current";
+    if (startDate && endDate) {
+      url += `?start_date=${startDate}&end_date=${endDate}`;
+    }
+    return get<any>(url);
+  },
   getSprintHistory: () => get<any>("/api/sprint/history"),
   getBurndown:      () => get<any>("/api/sprint/burndown"),
   getDigest:        () => get<any>("/api/sprint/digest"),
