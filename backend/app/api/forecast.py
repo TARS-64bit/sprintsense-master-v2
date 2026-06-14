@@ -15,9 +15,16 @@ async def get_slippage_forecast(
     x_llm_key: Optional[str] = Header(default=None),
     x_github_token: Optional[str] = Header(default=None),
     x_github_owner: Optional[str] = Header(default=None),
-    x_github_repo: Optional[str] = Header(default=None)
+    x_github_repo: Optional[str] = Header(default=None),
+    x_jira_url: Optional[str] = Header(default=None),
+    x_jira_email: Optional[str] = Header(default=None),
+    x_jira_api_token: Optional[str] = Header(default=None),
+    x_jira_project_key: Optional[str] = Header(default=None)
 ):
-    tickets = await get_active_tickets(x_github_token, x_github_owner, x_github_repo)
+    tickets = await get_active_tickets(
+        x_github_token, x_github_owner, x_github_repo,
+        x_jira_url, x_jira_email, x_jira_api_token, x_jira_project_key
+    )
 
     # We dynamically run the monte-carlo simulation based on current actual burndown
     actual_burndown = BURNDOWN.get("actual", [])
@@ -46,9 +53,16 @@ async def get_velocity(
     x_llm_key: Optional[str] = Header(default=None),
     x_github_token: Optional[str] = Header(default=None),
     x_github_owner: Optional[str] = Header(default=None),
-    x_github_repo: Optional[str] = Header(default=None)
+    x_github_repo: Optional[str] = Header(default=None),
+    x_jira_url: Optional[str] = Header(default=None),
+    x_jira_email: Optional[str] = Header(default=None),
+    x_jira_api_token: Optional[str] = Header(default=None),
+    x_jira_project_key: Optional[str] = Header(default=None)
 ):
-    tickets = await get_active_tickets(x_github_token, x_github_owner, x_github_repo)
+    tickets = await get_active_tickets(
+        x_github_token, x_github_owner, x_github_repo,
+        x_jira_url, x_jira_email, x_jira_api_token, x_jira_project_key
+    )
 
     # If in mock mode, use seed data
     if tickets is BACKLOG_TICKETS:

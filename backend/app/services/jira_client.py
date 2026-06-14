@@ -33,9 +33,9 @@ def _get(key: str) -> str:
     from app.api.integrations import _get as get_config
     return get_config(key)
 
-def _auth_header() -> str:
-    email = _get("JIRA_EMAIL")
-    token = _get("JIRA_API_TOKEN")
+def _auth_header(email_override: Optional[str] = None, token_override: Optional[str] = None) -> str:
+    email = email_override or _get("JIRA_EMAIL")
+    token = token_override or _get("JIRA_API_TOKEN")
     encoded = base64.b64encode(f"{email}:{token}".encode()).decode()
     return f"Basic {encoded}"
 
@@ -104,8 +104,11 @@ def _map_status(status_name: str) -> str:
 async def fetch_issues(
     project_key: Optional[str] = None,
     max_results: int = 50,
+    url_override: Optional[str] = None,
+    email_override: Optional[str] = None,
+    token_override: Optional[str] = None,
 ) -> list:
-    base_url = _get("JIRA_URL")
+    base_url = url_override or _get("JIRA_URL")
     if not base_url:
         logger.warning("JIRA_URL not set")
         return []
@@ -119,7 +122,7 @@ async def fetch_issues(
     url = f"{base_url}/rest/api/3/search"
 
     headers = {
-        "Authorization": _auth_header(),
+        "Authorization": _auth_header(email_override, token_override),
         "Accept": "application/json"
     }
 
@@ -197,8 +200,13 @@ async def fetch_issues(
 #
 # Acceptance: returns [] when env vars missing; never raises.
 
-async def fetch_sprint_history(board_id: Optional[int] = None) -> list:
-    base_url = _get("JIRA_URL")
+async def fetch_sprint_history(
+    board_id: Optional[str] = None,
+    url_override: Optional[str] = None,
+    email_override: Optional[str] = None,
+    token_override: Optional[str] = None,
+) -> list:
+    base_url = url_override or _get("JIRA_URL")
     b_id = board_id or _get("JIRA_BOARD_ID")
 
     if not base_url or not b_id:
@@ -206,7 +214,7 @@ async def fetch_sprint_history(board_id: Optional[int] = None) -> list:
 
     url = f"{base_url}/rest/agile/1.0/board/{b_id}/sprint"
     headers = {
-        "Authorization": _auth_header(),
+        "Authorization": _auth_header(email_override, token_override),
         "Accept": "application/json"
     }
     params = {"state": "closed"}

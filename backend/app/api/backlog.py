@@ -19,8 +19,32 @@ def clear_llm_cache():
     _llm_cache_estimates.clear()
     _llm_cache_dependencies = None
 
-async def get_active_tickets(x_github_token: Optional[str] = None, x_github_owner: Optional[str] = None, x_github_repo: Optional[str] = None):
-    # Try fetching explicitly with headers
+from app.services import jira_client
+
+async def get_active_tickets(
+    x_github_token: Optional[str] = None,
+    x_github_owner: Optional[str] = None,
+    x_github_repo: Optional[str] = None,
+    x_jira_url: Optional[str] = None,
+    x_jira_email: Optional[str] = None,
+    x_jira_api_token: Optional[str] = None,
+    x_jira_project_key: Optional[str] = None
+):
+    # Try fetching Jira explicitly with headers first
+    if x_jira_url and x_jira_email and x_jira_api_token and x_jira_project_key:
+        try:
+            issues = await jira_client.fetch_issues(
+                project_key=x_jira_project_key,
+                url_override=x_jira_url,
+                email_override=x_jira_email,
+                token_override=x_jira_api_token
+            )
+            if issues is not None and len(issues) > 0:
+                return issues
+        except Exception:
+            pass
+
+    # Try fetching GitHub explicitly with headers
     try:
         if x_github_token and x_github_owner and x_github_repo:
             issues = await github_client.fetch_issues(owner=x_github_owner, repo=x_github_repo, token_override=x_github_token)
@@ -45,9 +69,16 @@ async def get_backlog(
     x_llm_key: Optional[str] = Header(default=None),
     x_github_token: Optional[str] = Header(default=None),
     x_github_owner: Optional[str] = Header(default=None),
-    x_github_repo: Optional[str] = Header(default=None)
+    x_github_repo: Optional[str] = Header(default=None),
+    x_jira_url: Optional[str] = Header(default=None),
+    x_jira_email: Optional[str] = Header(default=None),
+    x_jira_api_token: Optional[str] = Header(default=None),
+    x_jira_project_key: Optional[str] = Header(default=None)
 ):
-    tickets = await get_active_tickets(x_github_token, x_github_owner, x_github_repo)
+    tickets = await get_active_tickets(
+        x_github_token, x_github_owner, x_github_repo,
+        x_jira_url, x_jira_email, x_jira_api_token, x_jira_project_key
+    )
 
     result = []
     for t in tickets:
@@ -80,11 +111,18 @@ async def get_dependencies(
     x_llm_key: Optional[str] = Header(default=None),
     x_github_token: Optional[str] = Header(default=None),
     x_github_owner: Optional[str] = Header(default=None),
-    x_github_repo: Optional[str] = Header(default=None)
+    x_github_repo: Optional[str] = Header(default=None),
+    x_jira_url: Optional[str] = Header(default=None),
+    x_jira_email: Optional[str] = Header(default=None),
+    x_jira_api_token: Optional[str] = Header(default=None),
+    x_jira_project_key: Optional[str] = Header(default=None)
 ):
     global _llm_cache_dependencies
 
-    tickets = await get_active_tickets(x_github_token, x_github_owner, x_github_repo)
+    tickets = await get_active_tickets(
+        x_github_token, x_github_owner, x_github_repo,
+        x_jira_url, x_jira_email, x_jira_api_token, x_jira_project_key
+    )
 
     # Filter explicit edges so we don't return edges referencing missing tickets
     ticket_ids = {t["id"] for t in tickets}
@@ -128,10 +166,17 @@ async def get_ticket(
     x_llm_key: Optional[str] = Header(default=None),
     x_github_token: Optional[str] = Header(default=None),
     x_github_owner: Optional[str] = Header(default=None),
-    x_github_repo: Optional[str] = Header(default=None)
+    x_github_repo: Optional[str] = Header(default=None),
+    x_jira_url: Optional[str] = Header(default=None),
+    x_jira_email: Optional[str] = Header(default=None),
+    x_jira_api_token: Optional[str] = Header(default=None),
+    x_jira_project_key: Optional[str] = Header(default=None)
 ):
     tid = ticket_id.upper()
-    tickets = await get_active_tickets(x_github_token, x_github_owner, x_github_repo)
+    tickets = await get_active_tickets(
+        x_github_token, x_github_owner, x_github_repo,
+        x_jira_url, x_jira_email, x_jira_api_token, x_jira_project_key
+    )
     ticket = next((t for t in tickets if t["id"] == tid), None)
 
     if not ticket:

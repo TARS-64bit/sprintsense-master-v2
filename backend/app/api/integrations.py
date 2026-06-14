@@ -122,9 +122,25 @@ def save_integration_config(cfg: IntegrationConfig):
 from app.data.seed_data import BACKLOG_TICKETS, SPRINT_HISTORY
 
 @router.post("/jira/sync")
-async def sync_jira():
-    tickets = await jira_client.fetch_issues()
-    history = await jira_client.fetch_sprint_history()
+async def sync_jira(
+    x_jira_url: Optional[str] = Header(default=None),
+    x_jira_email: Optional[str] = Header(default=None),
+    x_jira_api_token: Optional[str] = Header(default=None),
+    x_jira_project_key: Optional[str] = Header(default=None),
+    x_jira_board_id: Optional[str] = Header(default=None),
+):
+    tickets = await jira_client.fetch_issues(
+        project_key=x_jira_project_key,
+        url_override=x_jira_url,
+        email_override=x_jira_email,
+        token_override=x_jira_api_token
+    )
+    history = await jira_client.fetch_sprint_history(
+        board_id=x_jira_board_id,
+        url_override=x_jira_url,
+        email_override=x_jira_email,
+        token_override=x_jira_api_token
+    )
 
     # Merge into BACKLOG_TICKETS
     existing_ids = {t["id"]: i for i, t in enumerate(BACKLOG_TICKETS)}
