@@ -115,8 +115,15 @@ async def get_current_sprint(
     if not end_date:
         end_date = (datetime.now() + timedelta(days=14)).strftime("%Y-%m-%d")
 
+    try:
+        s_dt = datetime.strptime(start_date, "%Y-%m-%d")
+        e_dt = datetime.strptime(end_date, "%Y-%m-%d")
+        sprint_days = max(1, (e_dt - s_dt).days)
+    except Exception:
+        sprint_days = 14
 
     team_data = await get_team(
+        sprint_days,
         x_github_token, x_github_owner, x_github_repo,
         x_jira_url, x_jira_email, x_jira_api_token, x_jira_project_key
     )
@@ -136,14 +143,6 @@ async def get_current_sprint(
     estimates = {}
     for t in backlog_data.get("tickets", []):
         estimates[t["id"]] = t.get("estimate", LLM_ESTIMATES.get(t["id"], {}))
-
-    # Pass days to build_sprint_plan
-    try:
-        s_dt = datetime.strptime(start_date, "%Y-%m-%d")
-        e_dt = datetime.strptime(end_date, "%Y-%m-%d")
-        sprint_days = max(1, (e_dt - s_dt).days)
-    except Exception:
-        sprint_days = 14
 
     plan = build_sprint_plan(
         backlog_tickets=tickets,

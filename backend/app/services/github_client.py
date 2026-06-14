@@ -206,7 +206,7 @@ async def fetch_collaborators(
                     "id": user.get("login"),
                     "name": user.get("login"),
                     "role": "Engineer",
-                    "capacity_hours": 400, # Set high capacity
+                    "capacity_hours": 80,
                     "avatar": user.get("login")[:2].upper() if user.get("login") else "??"
                 })
             return members

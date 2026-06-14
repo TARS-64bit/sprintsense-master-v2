@@ -10,6 +10,7 @@ _integration_team_cache = []
 
 @router.get("/")
 async def get_team(
+    sprint_days: int = 14,
     x_github_token: Optional[str] = Header(default=None),
     x_github_owner: Optional[str] = Header(default=None),
     x_github_repo: Optional[str] = Header(default=None),
@@ -18,6 +19,13 @@ async def get_team(
     x_jira_api_token: Optional[str] = Header(default=None),
     x_jira_project_key: Optional[str] = Header(default=None)
 ):
+    # Calculate expected hours assuming 8 hr workdays and omitting weekends roughly.
+    # A standard 14 day sprint (2 weeks) has 10 working days = 80 hours.
+    # To keep it simple, we just do sprint_days * 5.71 working days per week * 8 ~ roughly.
+    # Or more easily: 8 hours * (sprint_days * 5 // 7) -> 80 hrs for 14 days.
+    working_days = max(1, (sprint_days * 5) // 7)
+    expected_capacity = working_days * 8
+
     tickets = await get_active_tickets(
         x_github_token, x_github_owner, x_github_repo,
         x_jira_url, x_jira_email, x_jira_api_token, x_jira_project_key
@@ -30,7 +38,10 @@ async def get_team(
     # If we successfully fetched collaborators during sync, return them directly.
     # They represent everyone in the repo, not just people with active tickets.
     if _integration_team_cache:
-        return {"members": _integration_team_cache}
+        members = []
+        for m in _integration_team_cache:
+            members.append({**m, "capacity_hours": expected_capacity})
+        return {"members": members}
 
     # Fallback: if we are in integration mode but have no collaborators fetched
     # (e.g. read-only token lacking permissions to hit /collaborators API),
@@ -48,7 +59,7 @@ async def get_team(
                 "id": str(assignee),
                 "name": str(assignee),
                 "role": "Engineer",
-                "capacity_hours": 400, # Set a high capacity by default when guessing team to avoid deferring all items
+                "capacity_hours": expected_capacity,
                 "avatar": str(assignee)[:2].upper()
             }
 
@@ -57,7 +68,7 @@ async def get_team(
             "id": "Engineer",
             "name": "Engineer",
             "role": "Engineer",
-            "capacity_hours": 400,
+            "capacity_hours": expected_capacity,
             "avatar": "EN"
         }
 
