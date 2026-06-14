@@ -41,6 +41,8 @@ CLASSIFY_SYSTEM = """You are a software dependency analyser.
 Given two Jira-style tickets A and B, decide whether A BLOCKS B.
 A blocks B when B cannot begin (or cannot be merged) until A is complete.
 
+Important: In your 'reason' string, use the actual Ticket IDs provided to you instead of 'Ticket A' and 'Ticket B'.
+
 Respond with ONLY valid JSON — no markdown, no extra keys:
 {
   "blocks": true | false,
@@ -147,10 +149,16 @@ Does A block B?"""
         parsed = json.loads(cleaned)
 
         if parsed.get("blocks") is True and parsed.get("confidence", 0) >= confidence_threshold:
+            reason = parsed.get("reason", "Inferred dependency")
+
+            # Fallback to replace generic A/B terms with the actual Ticket IDs if the LLM hallucinated them
+            reason = reason.replace("Ticket A", ticket_a["id"]).replace("ticket A", ticket_a["id"])
+            reason = reason.replace("Ticket B", ticket_b["id"]).replace("ticket B", ticket_b["id"])
+
             return {
                 "from": ticket_a["id"],
                 "to": ticket_b["id"],
-                "reason": parsed.get("reason", "Inferred dependency"),
+                "reason": reason,
                 "source": "llm",
             }
 

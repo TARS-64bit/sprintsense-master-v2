@@ -128,6 +128,28 @@ html, body, #root {
   50%      { opacity: 0.4; transform: scale(0.7); }
 }
 
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.shimmer-skeleton {
+  background: var(--bg-elevated);
+  background-image: linear-gradient(
+    -45deg,
+    var(--bg-elevated) 25%,
+    var(--bg-overlay) 50%,
+    var(--bg-elevated) 75%
+  );
+  background-size: 400% 400%;
+  animation: shimmer 2s infinite ease-in-out;
+}
+
+@keyframes shimmer {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
 /* Page fade in */
 .page-enter {
   animation: fadeUp 0.3s ease both;

@@ -23,9 +23,16 @@ function buildHeaders(): HeadersInit {
   if (cfgStr) {
     try {
       const cfg = JSON.parse(cfgStr);
+      // GitHub
       if (cfg.github_token) h["X-GitHub-Token"] = cfg.github_token;
       if (cfg.github_owner) h["X-GitHub-Owner"] = cfg.github_owner;
       if (cfg.github_repo) h["X-GitHub-Repo"] = cfg.github_repo;
+      // Jira
+      if (cfg.jira_url) h["X-Jira-Url"] = cfg.jira_url;
+      if (cfg.jira_email) h["X-Jira-Email"] = cfg.jira_email;
+      if (cfg.jira_api_token) h["X-Jira-Api-Token"] = cfg.jira_api_token;
+      if (cfg.jira_project_key) h["X-Jira-Project-Key"] = cfg.jira_project_key;
+      if (cfg.jira_board_id) h["X-Jira-Board-Id"] = cfg.jira_board_id;
     } catch (e) {}
   }
   return h;

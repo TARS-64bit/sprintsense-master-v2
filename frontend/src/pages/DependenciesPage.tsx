@@ -11,6 +11,8 @@ const STATUS_COLOR: Record<string, string> = {
   done:        "#22d58a",
   todo:        "#4a5468",
   backlog:     "#4a5468",
+  open:        "#22d58a", // Green for GitHub open
+  closed:      "#a78bfa", // Purple for GitHub closed
 };
 
 // Helper to color nodes based on complexity (story points)
@@ -22,14 +24,16 @@ function getPointsColor(pts: number): string {
 }
 
 export default function DependenciesPage() {
-  const { data: deps }    = useApi(() => api.getDependencies());
-  const { data: backlog } = useApi(() => api.getBacklog());
-  const { data: board }   = useApi(() => api.getBoard());
+  const { data: deps, loading: depsLoading }       = useApi(() => api.getDependencies());
+  const { data: backlog, loading: backlogLoading } = useApi(() => api.getBacklog());
+  const { data: board }                            = useApi(() => api.getBoard());
   const svgRef = useRef<SVGSVGElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
+  const isLoading = depsLoading || backlogLoading;
+
   useEffect(() => {
-    if (!deps || !backlog || !svgRef.current) return;
+    if (isLoading || !deps || !backlog || !svgRef.current) return;
 
     const edges: { from: string; to: string; reason: string }[] = deps.edges ?? [];
     const tickets = backlog.tickets ?? [];
@@ -43,10 +47,15 @@ export default function DependenciesPage() {
     const statusMap: Record<string, string> = {};
     if (boardState) {
       ["todo","in_progress","review","done"].forEach((col: string) => {
-        (boardState[col] ?? []).forEach((t: any) => { statusMap[t.id] = col; });
+        (boardState[col] ?? []).forEach((id: string) => { statusMap[id] = col; });
       });
     }
-    tickets.forEach((t: any) => { if (!statusMap[t.id]) statusMap[t.id] = "backlog"; });
+    tickets.forEach((t: any) => {
+      // If the ticket already has a native status (like open/closed from GitHub), keep it.
+      if (!statusMap[t.id]) {
+        statusMap[t.id] = t.status || "backlog";
+      }
+    });
 
     /* Build node and link arrays for D3 */
     const nodes = tickets.map((t: any) => ({
@@ -54,7 +63,7 @@ export default function DependenciesPage() {
       label: t.id,
       title: t.title ?? t.id,
       pts: t.estimate?.points ?? 5,
-      status: statusMap[t.id] ?? "backlog"
+      status: statusMap[t.id]
     }));
 
     // Only map edges where both source and target actually exist in our nodes array
@@ -72,7 +81,7 @@ export default function DependenciesPage() {
     svg.append("defs").append("marker")
       .attr("id", "arrow")
       .attr("viewBox", "0 -5 10 10")
-      .attr("refX", 38).attr("refY", 0)
+      .attr("refX", 10).attr("refY", 0)
       .attr("markerWidth", 4).attr("markerHeight", 4)
       .attr("orient", "auto")
       .append("path").attr("d", "M0,-5L10,0L0,5").attr("fill", "#3d7eff");
@@ -221,7 +230,7 @@ export default function DependenciesPage() {
       sim.stop();
     };
 
-  }, [deps, backlog, board, isFullscreen]);
+  }, [deps, backlog, board, isFullscreen, isLoading]);
 
   const hasTickets = backlog?.tickets && backlog.tickets.length > 0;
 
@@ -235,17 +244,29 @@ export default function DependenciesPage() {
           </p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          {[
-            { color: "#3d7eff", label: "In Progress" },
-            { color: "#a78bfa", label: "Review" },
-            { color: "#22d58a", label: "Done" },
-            { color: "#4a5468", label: "Not started" },
-          ].map(l => (
-            <div key={l.label} style={styles.legendItem}>
-              <div style={{ width:10, height:10, borderRadius:"50%", background:l.color }} />
-              <span style={{ fontSize:12, color:"var(--text-secondary)" }}>{l.label}</span>
-            </div>
-          ))}
+          {hasTickets && backlog.tickets[0].id.startsWith("GH-") ? (
+            [
+              { color: "#22d58a", label: "Open" },
+              { color: "#a78bfa", label: "Closed" },
+            ].map(l => (
+              <div key={l.label} style={styles.legendItem}>
+                <div style={{ width:10, height:10, borderRadius:"50%", background:l.color }} />
+                <span style={{ fontSize:12, color:"var(--text-secondary)" }}>{l.label}</span>
+              </div>
+            ))
+          ) : (
+            [
+              { color: "#3d7eff", label: "In Progress" },
+              { color: "#a78bfa", label: "Review" },
+              { color: "#22d58a", label: "Done" },
+              { color: "#4a5468", label: "Not started" },
+            ].map(l => (
+              <div key={l.label} style={styles.legendItem}>
+                <div style={{ width:10, height:10, borderRadius:"50%", background:l.color }} />
+                <span style={{ fontSize:12, color:"var(--text-secondary)" }}>{l.label}</span>
+              </div>
+            ))
+          )}
         </div>
       </div>
 
@@ -276,12 +297,21 @@ export default function DependenciesPage() {
               color: "var(--text-secondary)"
             }}
             title="Fullscreen"
+            disabled={isLoading}
           >
             <Maximize size={16} />
           </button>
         </div>
 
-        {!hasTickets && backlog && (
+        {isLoading && (
+          <div className="shimmer-skeleton" style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "var(--text-muted)", gap: 16 }}>
+             <div className="pulse" style={{ width: 40, height: 40, border: "3px solid var(--accent)", borderRadius: "50%", borderTopColor: "transparent", animation: "spin 1s linear infinite" }} />
+             <div style={{ fontSize: 14, fontWeight: 600, color: "var(--fg)", textShadow: "0 1px 2px rgba(0,0,0,0.5)" }}>AI is analyzing tickets...</div>
+             <div style={{ fontSize: 13, textShadow: "0 1px 2px rgba(0,0,0,0.5)" }}>Inferring implicit dependencies and calculating story points.</div>
+          </div>
+        )}
+
+        {!isLoading && !hasTickets && backlog && (
            <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "var(--text-muted)" }}>
               <div style={{ fontSize: 24, marginBottom: 8 }}>📭</div>
               <div>No tickets found in the backlog.</div>
@@ -289,8 +319,8 @@ export default function DependenciesPage() {
            </div>
         )}
 
-        {/* Render inline SVG only when NOT fullscreen */}
-        {!isFullscreen && (
+        {/* Render inline SVG only when NOT fullscreen and NOT loading */}
+        {!isFullscreen && !isLoading && (
            <svg ref={svgRef} style={{ width: "100%", height: "100%", display: hasTickets ? "block" : "none", cursor: "grab" }} />
         )}
       </div>
@@ -321,7 +351,7 @@ export default function DependenciesPage() {
       )}
 
       {/* Dependency edge list (always rendered — no implementation needed) */}
-      {hasTickets && (
+      {!isLoading && hasTickets && (
         <div className="card" style={{ marginTop: 14 }}>
           <div style={styles.cardTitle}>Dependency Edges</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
