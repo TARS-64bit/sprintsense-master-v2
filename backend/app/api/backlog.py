@@ -94,18 +94,27 @@ async def get_dependencies(
     ]
 
     if _llm_cache_dependencies is not None:
-        edges = _llm_cache_dependencies
+        all_edges = _llm_cache_dependencies
     else:
-        edges = await detect_implicit_dependencies(
+        all_edges = await detect_implicit_dependencies(
             tickets=tickets,
             explicit_edges=valid_explicit_edges,
             api_key=x_llm_key
         )
         # Only cache if we actually provided a key (meaning the LLM ran, even if it returned 0 edges)
         if x_llm_key and len(tickets) > 0:
-            _llm_cache_dependencies = edges
+            _llm_cache_dependencies = all_edges
 
-    return {"edges": edges, "total": len(edges)}
+    # Filter out unresolved dependencies (if the 'from' ticket is 'done' or 'closed', it no longer blocks anything)
+    completed_statuses = {"done", "closed"}
+    ticket_status_map = {t["id"]: t.get("status", "todo").lower() for t in tickets}
+
+    active_edges = [
+        e for e in all_edges
+        if ticket_status_map.get(e["from"], "todo") not in completed_statuses
+    ]
+
+    return {"edges": active_edges, "total": len(active_edges)}
 
 
 @router.get("/at-risk")
