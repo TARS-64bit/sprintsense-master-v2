@@ -67,6 +67,7 @@ export const api = {
   getSprintHistory: () => get<any>("/api/sprint/history"),
   getBurndown:      () => get<any>("/api/sprint/burndown"),
   getDigest:        () => get<any>("/api/sprint/digest"),
+  startSprint:      (payload: any) => post<any>("/api/sprint/start", payload),
 
   // Forecast
   getSlippage:      () => get<any>("/api/forecast/slippage"),

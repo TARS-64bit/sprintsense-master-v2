@@ -129,3 +129,66 @@ async def fetch_collaborators(
     except Exception as e:
         logger.exception(f"Error fetching GitHub collaborators: {e}")
         return []
+
+async def create_milestone_and_assign_issues(
+    name: str,
+    description: str,
+    due_on: str,
+    ticket_ids: list,
+    owner: Optional[str] = None,
+    repo: Optional[str] = None,
+    token_override: Optional[str] = None,
+) -> dict:
+    """
+    Creates a milestone in a GitHub repository and assigns the specified issues to it.
+    """
+    gh_owner = owner or _get("GITHUB_OWNER")
+    gh_repo = repo or _get("GITHUB_REPO")
+    token = token_override or _get("GITHUB_TOKEN")
+
+    if not (gh_owner and gh_repo and token):
+        raise ValueError("GITHUB_OWNER, GITHUB_REPO, or GITHUB_TOKEN is missing")
+
+    headers = _auth_header(token)
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            # 1. Create Milestone
+            create_url = f"{GITHUB_API_URL}/repos/{gh_owner}/{gh_repo}/milestones"
+            create_payload = {
+                "title": name,
+                "state": "open",
+                "description": description,
+                "due_on": f"{due_on}T23:59:59Z"
+            }
+            resp = await client.post(create_url, headers=headers, json=create_payload)
+            resp.raise_for_status()
+            milestone_data = resp.json()
+            milestone_number = milestone_data.get("number")
+
+            if not milestone_number:
+                raise Exception("Failed to get milestone number from create response")
+
+            # 2. Assign issues to milestone
+            if ticket_ids:
+                for t in ticket_ids:
+                    issue_number_str = t.replace("GH-", "") if t.startswith("GH-") else t
+                    try:
+                        issue_number = int(issue_number_str)
+                        patch_url = f"{GITHUB_API_URL}/repos/{gh_owner}/{gh_repo}/issues/{issue_number}"
+                        patch_payload = {"milestone": milestone_number}
+                        patch_resp = await client.patch(patch_url, headers=headers, json=patch_payload)
+                        patch_resp.raise_for_status()
+                    except ValueError:
+                        logger.warning(f"Invalid GitHub issue number: {t}")
+                    except Exception as e:
+                        logger.warning(f"Failed to assign issue {t} to milestone: {e}")
+
+            return {
+                "success": True,
+                "milestone_number": milestone_number,
+                "milestone_url": milestone_data.get("html_url")
+            }
+    except Exception as e:
+        logger.exception(f"Error creating GitHub milestone: {e}")
+        return {"success": False, "error": str(e)}

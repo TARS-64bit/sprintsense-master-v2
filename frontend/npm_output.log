@@ -2,9 +2,9 @@
 > sprintsense-frontend@1.0.0 start
 > react-scripts start
 
-(node:1748009) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(node:66740) [DEP_WEBPACK_DEV_SERVER_ON_AFTER_SETUP_MIDDLEWARE] DeprecationWarning: 'onAfterSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
 (Use `node --trace-deprecation ...` to show where the warning was created)
-(node:1748009) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
+(node:66740) [DEP_WEBPACK_DEV_SERVER_ON_BEFORE_SETUP_MIDDLEWARE] DeprecationWarning: 'onBeforeSetupMiddleware' option is deprecated. Please use the 'setupMiddlewares' option.
 Starting the development server...
 
 Compiled with warnings.
@@ -18,9 +18,6 @@ src/pages/SprintPlanPage.tsx
   Line 4:10:  'Calendar' is defined but never used  @typescript-eslint/no-unused-vars
   Line 4:20:  'User' is defined but never used      @typescript-eslint/no-unused-vars
 
-src/pages/TeamPage.tsx
-  Line 5:10:  'User' is defined but never used  @typescript-eslint/no-unused-vars
-
 Search for the keywords to learn more about each warning.
 To ignore, add // eslint-disable-next-line to the line before.
 
@@ -32,119 +29,6 @@ src/pages/Dashboard.tsx
 src/pages/SprintPlanPage.tsx
   Line 4:10:  'Calendar' is defined but never used  @typescript-eslint/no-unused-vars
   Line 4:20:  'User' is defined but never used      @typescript-eslint/no-unused-vars
-
-src/pages/TeamPage.tsx
-  Line 5:10:  'User' is defined but never used  @typescript-eslint/no-unused-vars
-
-webpack compiled with 1 warning
-No issues found.
-Compiling...
-Failed to compile.
-
-[eslint]
-src/utils/api.ts
-Syntax error: Declaration or statement expected (37:undefined)
-WARNING in [eslint]
-src/pages/Dashboard.tsx
-  Line 5:3:  'LineChart' is defined but never used     @typescript-eslint/no-unused-vars
-  Line 9:3:  'TrendingDown' is defined but never used  @typescript-eslint/no-unused-vars
-
-src/pages/SprintPlanPage.tsx
-  Line 4:10:  'Calendar' is defined but never used  @typescript-eslint/no-unused-vars
-  Line 4:20:  'User' is defined but never used      @typescript-eslint/no-unused-vars
-
-src/pages/TeamPage.tsx
-  Line 5:10:  'User' is defined but never used  @typescript-eslint/no-unused-vars
-
-ERROR in ./src/utils/api.ts
-Module build failed (from ./node_modules/babel-loader/lib/index.js):
-SyntaxError: /app/frontend/src/utils/api.ts: 'return' outside of function. (36:2)
-
-  34 |   const h: Record<string, string> = { "Content-Type": "application/json" };
-  35 |   if (key) h["X-LLM-Key"] = key;
-> 36 |   return h;
-     |   ^
-  37 | }
-  38 |
-  39 | async function get<T>(path: string): Promise<T> {
-    at constructor (/app/frontend/node_modules/@babel/parser/lib/index.js:365:19)
-    at TypeScriptParserMixin.raise (/app/frontend/node_modules/@babel/parser/lib/index.js:6616:19)
-    at TypeScriptParserMixin.parseReturnStatement (/app/frontend/node_modules/@babel/parser/lib/index.js:13153:12)
-    at TypeScriptParserMixin.parseStatementContent (/app/frontend/node_modules/@babel/parser/lib/index.js:12815:21)
-    at TypeScriptParserMixin.parseStatementContent (/app/frontend/node_modules/@babel/parser/lib/index.js:9525:18)
-    at TypeScriptParserMixin.parseStatementLike (/app/frontend/node_modules/@babel/parser/lib/index.js:12784:17)
-    at TypeScriptParserMixin.parseModuleItem (/app/frontend/node_modules/@babel/parser/lib/index.js:12761:17)
-    at TypeScriptParserMixin.parseBlockOrModuleBlockBody (/app/frontend/node_modules/@babel/parser/lib/index.js:13333:36)
-    at TypeScriptParserMixin.parseBlockBody (/app/frontend/node_modules/@babel/parser/lib/index.js:13326:10)
-    at TypeScriptParserMixin.parseProgram (/app/frontend/node_modules/@babel/parser/lib/index.js:12639:10)
-    at TypeScriptParserMixin.parseTopLevel (/app/frontend/node_modules/@babel/parser/lib/index.js:12629:25)
-    at TypeScriptParserMixin.parse (/app/frontend/node_modules/@babel/parser/lib/index.js:14505:25)
-    at TypeScriptParserMixin.parse (/app/frontend/node_modules/@babel/parser/lib/index.js:10143:18)
-    at parse (/app/frontend/node_modules/@babel/parser/lib/index.js:14539:38)
-    at parser (/app/frontend/node_modules/@babel/core/lib/parser/index.js:41:34)
-    at parser.next (<anonymous>)
-    at normalizeFile (/app/frontend/node_modules/@babel/core/lib/transformation/normalize-file.js:51:37)
-    at normalizeFile.next (<anonymous>)
-    at run (/app/frontend/node_modules/@babel/core/lib/transformation/index.js:22:50)
-    at run.next (<anonymous>)
-    at transform (/app/frontend/node_modules/@babel/core/lib/transform.js:22:33)
-    at transform.next (<anonymous>)
-    at step (/app/frontend/node_modules/gensync/index.js:261:32)
-    at /app/frontend/node_modules/gensync/index.js:273:13
-    at async.call.result.err.err (/app/frontend/node_modules/gensync/index.js:223:11)
-    at /app/frontend/node_modules/gensync/index.js:189:28
-    at /app/frontend/node_modules/@babel/core/lib/gensync-utils/async.js:67:7
-    at /app/frontend/node_modules/gensync/index.js:113:33
-    at step (/app/frontend/node_modules/gensync/index.js:287:14)
-    at /app/frontend/node_modules/gensync/index.js:273:13
-    at async.call.result.err.err (/app/frontend/node_modules/gensync/index.js:223:11)
-
-ERROR in [eslint]
-src/utils/api.ts
-  Line 37:  Parsing error: Declaration or statement expected
-
-webpack compiled with 2 errors and 1 warning
-Files successfully emitted, waiting for typecheck results...
-Issues checking in progress...
-ERROR in src/utils/api.ts:37:1
-TS1128: Declaration or statement expected.
-    35 |   if (key) h["X-LLM-Key"] = key;
-    36 |   return h;
-  > 37 | }
-       | ^
-    38 |
-    39 | async function get<T>(path: string): Promise<T> {
-    40 |   const res = await fetch(`${BASE}${path}`, { headers: buildHeaders() });
-
-Compiling...
-Compiled with warnings.
-
-[eslint]
-src/pages/Dashboard.tsx
-  Line 5:3:  'LineChart' is defined but never used     @typescript-eslint/no-unused-vars
-  Line 9:3:  'TrendingDown' is defined but never used  @typescript-eslint/no-unused-vars
-
-src/pages/SprintPlanPage.tsx
-  Line 4:10:  'Calendar' is defined but never used  @typescript-eslint/no-unused-vars
-  Line 4:20:  'User' is defined but never used      @typescript-eslint/no-unused-vars
-
-src/pages/TeamPage.tsx
-  Line 5:10:  'User' is defined but never used  @typescript-eslint/no-unused-vars
-
-Search for the keywords to learn more about each warning.
-To ignore, add // eslint-disable-next-line to the line before.
-
-WARNING in [eslint]
-src/pages/Dashboard.tsx
-  Line 5:3:  'LineChart' is defined but never used     @typescript-eslint/no-unused-vars
-  Line 9:3:  'TrendingDown' is defined but never used  @typescript-eslint/no-unused-vars
-
-src/pages/SprintPlanPage.tsx
-  Line 4:10:  'Calendar' is defined but never used  @typescript-eslint/no-unused-vars
-  Line 4:20:  'User' is defined but never used      @typescript-eslint/no-unused-vars
-
-src/pages/TeamPage.tsx
-  Line 5:10:  'User' is defined but never used  @typescript-eslint/no-unused-vars
 
 webpack compiled with 1 warning
 No issues found.

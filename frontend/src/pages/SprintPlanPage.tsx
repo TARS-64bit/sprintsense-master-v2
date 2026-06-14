@@ -1,7 +1,7 @@
-import React from "react";
+import React, { useState } from "react";
 import { useApi } from "../hooks/useApi";
 import { api } from "../utils/api";
-import { Calendar, User, Info, BarChart2 } from "lucide-react";
+import { Calendar, User, Info, BarChart2, Play } from "lucide-react";
 
 const MEMBER_COLORS: Record<string, string> = {
   "USR-1": "#3d7eff",
@@ -30,6 +30,13 @@ export default function SprintPlanPage() {
   const { data: sprint, loading } = useApi(() => api.getCurrentSprint());
   const { data: history }        = useApi(() => api.getSprintHistory());
 
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [sprintName, setSprintName] = useState("");
+  const [sprintGoal, setSprintGoal] = useState("");
+  const [provider, setProvider] = useState("jira");
+  const [starting, setStarting] = useState(false);
+  const [startResult, setStartResult] = useState<{ success?: boolean; error?: string; url?: string } | null>(null);
+
   if (loading) return <div className="loading-spinner"><div className="pulse" />Loading sprint plan...</div>;
 
   const tickets = sprint?.tickets ?? [];
@@ -50,6 +57,17 @@ export default function SprintPlanPage() {
           </p>
         </div>
         <div style={{ display: "flex", gap: 12 }}>
+          <button
+            style={{ ...styles.statChip, cursor: "pointer", background: "var(--accent)", color: "#fff", border: "none" }}
+            onClick={() => {
+              setSprintName(`Sprint ${sprint?.sprint_number || ""}`);
+              setIsModalOpen(true);
+              setStartResult(null);
+            }}
+          >
+            <Play size={13} color="#fff" fill="#fff" />
+            <span style={{ fontWeight: 600, fontSize: 13 }}>Start Sprint</span>
+          </button>
           <div style={styles.statChip}>
             <BarChart2 size={13} color="var(--green)" />
             <span style={{ fontFamily: "var(--font-mono)", color: "var(--green)", fontWeight: 700 }}>{sprint?.total_capacity_points}</span>
@@ -177,6 +195,92 @@ export default function SprintPlanPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Start Sprint Modal */}
+      {isModalOpen && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalContent}>
+            <h2 style={{ fontSize: 18, marginTop: 0, marginBottom: 16 }}>Start Sprint</h2>
+
+            <label style={styles.label}>Provider</label>
+            <select
+              style={styles.input}
+              value={provider}
+              onChange={e => setProvider(e.target.value)}
+            >
+              <option value="jira">Jira</option>
+              <option value="github">GitHub</option>
+            </select>
+
+            <label style={styles.label}>Sprint Name</label>
+            <input
+              style={styles.input}
+              value={sprintName}
+              onChange={e => setSprintName(e.target.value)}
+              placeholder="e.g. Sprint 10"
+            />
+
+            <label style={styles.label}>Sprint Goal / Description</label>
+            <textarea
+              style={{ ...styles.input, minHeight: 60 }}
+              value={sprintGoal}
+              onChange={e => setSprintGoal(e.target.value)}
+              placeholder="Optional sprint goal..."
+            />
+
+            {startResult && (
+              <div style={{
+                marginTop: 12, padding: 12, borderRadius: 6, fontSize: 13,
+                background: startResult.success ? "var(--green-dim)" : "var(--red-dim)",
+                color: startResult.success ? "var(--green)" : "var(--red)",
+                border: `1px solid ${startResult.success ? "var(--green)" : "var(--red)"}`
+              }}>
+                {startResult.success ? (
+                  <>Sprint started successfully! <a href={startResult.url} target="_blank" rel="noreferrer" style={{color: "var(--green)", textDecoration: "underline"}}>View here</a></>
+                ) : (
+                  <>Error: {startResult.error}</>
+                )}
+              </div>
+            )}
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, marginTop: 24 }}>
+              <button
+                style={{ ...styles.button, background: "var(--bg-surface)", color: "var(--text-primary)", border: "1px solid var(--border)" }}
+                onClick={() => setIsModalOpen(false)}
+              >
+                Close
+              </button>
+              <button
+                style={{ ...styles.button, background: "var(--accent)", color: "#fff", border: "none", opacity: starting ? 0.7 : 1 }}
+                disabled={starting}
+                onClick={async () => {
+                  setStarting(true);
+                  setStartResult(null);
+                  try {
+                    const ticketIds = (sprint?.tickets || []).map((t: any) => t.id);
+                    const res = await api.startSprint({
+                      provider,
+                      name: sprintName,
+                      goal: sprintGoal,
+                      start_date: sprint?.start_date,
+                      end_date: sprint?.end_date,
+                      ticket_ids: ticketIds,
+                    });
+                    setStartResult({ success: res.success, error: res.error, url: res.sprint_url || res.milestone_url });
+                  } catch (err: any) {
+                    setStartResult({ success: false, error: err.message });
+                  } finally {
+                    setStarting(false);
+                  }
+                }}
+              >
+                {starting ? "Starting..." : "Start Sprint"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
@@ -240,4 +344,23 @@ const styles: Record<string, React.CSSProperties> = {
   th: { padding: "6px 12px", textAlign: "left" as const, fontFamily: "var(--font-mono)", textTransform: "uppercase" as const, letterSpacing: "0.05em" },
   td: { padding: "8px 12px", fontSize: 13, color: "var(--text-primary)" },
   tr: { borderBottom: "1px solid var(--border-subtle)" },
+  modalOverlay: {
+    position: "fixed" as const, top: 0, left: 0, right: 0, bottom: 0,
+    background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center",
+    zIndex: 1000, backdropFilter: "blur(4px)"
+  },
+  modalContent: {
+    background: "var(--bg-surface)", padding: 24, borderRadius: 12,
+    width: "100%", maxWidth: 400, border: "1px solid var(--border)",
+    boxShadow: "0 10px 30px rgba(0,0,0,0.2)"
+  },
+  label: { display: "block", fontSize: 12, fontWeight: 600, color: "var(--text-muted)", marginBottom: 6, marginTop: 12 },
+  input: {
+    width: "100%", padding: "8px 12px", borderRadius: 6, border: "1px solid var(--border)",
+    background: "var(--bg-body)", color: "var(--text-primary)", fontSize: 14,
+    boxSizing: "border-box" as const, fontFamily: "inherit"
+  },
+  button: {
+    padding: "8px 16px", borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: "pointer",
+  }
 };

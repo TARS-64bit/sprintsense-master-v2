@@ -272,3 +272,77 @@ async def fetch_sprint_history(
     except Exception as e:
         logger.exception(f"Error fetching Jira sprint history: {e}")
         return []
+
+async def create_and_start_sprint(
+    name: str,
+    goal: str,
+    start_date: str,
+    end_date: str,
+    ticket_ids: list,
+    board_id: Optional[str] = None,
+    url_override: Optional[str] = None,
+    email_override: Optional[str] = None,
+    token_override: Optional[str] = None,
+) -> dict:
+    """
+    Creates a sprint on a Jira Agile board, moves the specified tickets into it,
+    and starts the sprint.
+    """
+    base_url = url_override or _get("JIRA_URL")
+    b_id = board_id or _get("JIRA_BOARD_ID")
+
+    if not base_url or not b_id:
+        raise ValueError("JIRA_URL or JIRA_BOARD_ID is missing")
+
+    headers = {
+        "Authorization": _auth_header(email_override, token_override),
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            # 1. Create Sprint
+            create_url = f"{base_url}/rest/agile/1.0/sprint"
+            create_payload = {
+                "name": name,
+                "goal": goal,
+                "startDate": f"{start_date}T00:00:00.000+00:00",
+                "endDate": f"{end_date}T00:00:00.000+00:00",
+                "originBoardId": int(b_id)
+            }
+            resp = await client.post(create_url, headers=headers, json=create_payload)
+            resp.raise_for_status()
+            sprint_data = resp.json()
+            sprint_id = sprint_data.get("id")
+
+            if not sprint_id:
+                raise Exception("Failed to get sprint ID from create response")
+
+            # 2. Move Issues to Sprint
+            if ticket_ids:
+                # Jira API needs the original issue key (e.g. PROJ-123 instead of JIRA-PROJ-123)
+                jira_keys = [t.replace("JIRA-", "") if t.startswith("JIRA-") else t for t in ticket_ids]
+                move_url = f"{base_url}/rest/agile/1.0/sprint/{sprint_id}/issue"
+                move_payload = {"issues": jira_keys}
+                move_resp = await client.post(move_url, headers=headers, json=move_payload)
+                move_resp.raise_for_status()
+
+            # 3. Start Sprint
+            start_url = f"{base_url}/rest/agile/1.0/sprint/{sprint_id}"
+            start_payload = {
+                "state": "active",
+                "startDate": f"{start_date}T00:00:00.000+00:00",
+                "endDate": f"{end_date}T00:00:00.000+00:00"
+            }
+            start_resp = await client.put(start_url, headers=headers, json=start_payload)
+            start_resp.raise_for_status()
+
+            return {
+                "success": True,
+                "sprint_id": sprint_id,
+                "sprint_url": f"{base_url}/secure/RapidBoard.jspa?rapidView={b_id}&sprint={sprint_id}"
+            }
+    except Exception as e:
+        logger.exception(f"Error creating/starting Jira sprint: {e}")
+        return {"success": False, "error": str(e)}

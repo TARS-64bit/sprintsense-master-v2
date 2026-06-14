@@ -1,0 +1,46 @@
+INFO:     Started server process [122939]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:53956 - "OPTIONS /api/forecast/slippage HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53970 - "OPTIONS /api/sprint/current HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53980 - "OPTIONS /api/sprint/burndown HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53988 - "OPTIONS /api/forecast/velocity HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54002 - "OPTIONS /api/sprint/digest HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54012 - "OPTIONS /api/team/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53970 - "OPTIONS /api/forecast/slippage HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53956 - "OPTIONS /api/sprint/current HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53988 - "OPTIONS /api/sprint/burndown HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54002 - "OPTIONS /api/forecast/velocity HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53980 - "OPTIONS /api/sprint/digest HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54012 - "OPTIONS /api/team/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53970 - "GET /api/sprint/current HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53988 - "GET /api/forecast/slippage HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53956 - "GET /api/forecast/velocity HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54002 - "GET /api/sprint/digest HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54012 - "GET /api/team/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53970 - "GET /api/sprint/current HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53988 - "GET /api/forecast/slippage HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54002 - "GET /api/sprint/digest HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53956 - "GET /api/forecast/velocity HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54012 - "GET /api/team/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53980 - "GET /api/sprint/burndown HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54012 - "GET /api/sprint/burndown HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42744 - "GET /api/sprint/current HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42058 - "OPTIONS /api/sprint/current HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42074 - "OPTIONS /api/sprint/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42090 - "OPTIONS /api/sprint/current HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42094 - "OPTIONS /api/sprint/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42100 - "GET /api/sprint/current HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42058 - "GET /api/sprint/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42094 - "GET /api/sprint/current HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42100 - "GET /api/sprint/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49950 - "GET /api/sprint/current HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33276 - "OPTIONS /api/sprint/current HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33280 - "OPTIONS /api/sprint/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33296 - "OPTIONS /api/sprint/current HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33306 - "OPTIONS /api/sprint/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33280 - "GET /api/sprint/current HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33310 - "GET /api/sprint/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33306 - "GET /api/sprint/current HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33280 - "GET /api/sprint/history HTTP/1.1" 200 OK
