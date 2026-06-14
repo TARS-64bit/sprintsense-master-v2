@@ -136,20 +136,18 @@ html, body, #root {
 .shimmer-skeleton {
   background: var(--bg-elevated);
   background-image: linear-gradient(
-    to right,
-    var(--bg-elevated) 0%,
-    var(--bg-overlay) 20%,
-    var(--bg-elevated) 40%,
-    var(--bg-elevated) 100%
+    -45deg,
+    var(--bg-elevated) 25%,
+    var(--bg-overlay) 50%,
+    var(--bg-elevated) 75%
   );
-  background-repeat: no-repeat;
-  background-size: 800px 100%;
-  animation: shimmer 1.5s infinite linear forwards;
+  background-size: 400% 400%;
+  animation: shimmer 2s infinite ease-in-out;
 }
 
 @keyframes shimmer {
-  0% { background-position: -400px 0; }
-  100% { background-position: 400px 0; }
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
 }
 
 /* Page fade in */

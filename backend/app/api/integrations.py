@@ -167,8 +167,8 @@ async def sync_github(
     for issue in issues:
         BACKLOG_TICKETS.append(issue)
 
+    _integration_team_cache.clear()
     if collaborators:
-        _integration_team_cache.clear()
         _integration_team_cache.extend(collaborators)
 
     clear_llm_cache()
